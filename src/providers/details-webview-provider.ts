@@ -32,8 +32,7 @@ export class DetailsWebviewProvider implements vscode.WebviewViewProvider {
 			enableScripts: true,
 			localResourceRoots: [
 				vscode.Uri.joinPath(this.extensionUri, 'dist'),
-				vscode.Uri.joinPath(this.extensionUri, 'media'),
-				vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode/codicons', 'dist')
+				vscode.Uri.joinPath(this.extensionUri, 'media')
 			]
 		};
 
@@ -180,6 +179,12 @@ export class DetailsWebviewProvider implements vscode.WebviewViewProvider {
 				this.clearProject();
 				break;
 			}
+
+			case 'openUrl': {
+				const payload = message.payload as { url: string };
+				vscode.env.openExternal(vscode.Uri.parse(payload.url));
+				break;
+			}
 		}
 	}
 
@@ -188,7 +193,7 @@ export class DetailsWebviewProvider implements vscode.WebviewViewProvider {
 	 */
 	private getHtmlContent(webview: vscode.Webview): string {
 		const codiconsUri = webview.asWebviewUri(
-			vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css')
+			vscode.Uri.joinPath(this.extensionUri, 'dist', 'codicons', 'codicon.css')
 		);
 		const scriptUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview', 'details-view.js')
