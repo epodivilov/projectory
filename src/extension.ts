@@ -30,9 +30,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	savedProjectsService = new SavedProjectsService(context.globalState);
 	tagService = new TagService();
 	metadataService = new ProjectMetadataService(context.globalState);
-	suggestionService = new SuggestionService(context.globalState, historyService, savedProjectsService);
 	detailsWebviewProvider = new DetailsWebviewProvider(context.extensionUri, historyService, savedProjectsService);
 	projectsTreeProvider = new ProjectsTreeProvider(historyService, savedProjectsService, tagService, metadataService);
+	suggestionService = new SuggestionService(
+		context.globalState,
+		historyService,
+		savedProjectsService,
+		() => projectsTreeProvider.getProjects().map((p) => p.path)
+	);
 
 	// Create tree view
 	const projectsTreeView = vscode.window.createTreeView('projectory.projectsView', {

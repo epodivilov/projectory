@@ -20,7 +20,8 @@ export class SuggestionService {
 	constructor(
 		private readonly globalState: vscode.Memento,
 		private readonly historyService: WorkspaceHistoryService,
-		private readonly savedProjectsService: SavedProjectsService
+		private readonly savedProjectsService: SavedProjectsService,
+		private readonly getProjectPaths?: () => string[]
 	) {}
 
 	/**
@@ -121,12 +122,16 @@ export class SuggestionService {
 		const savedProjects = this.savedProjectsService.getSavedProjects();
 		const savedPaths = new Set(savedProjects.map((p) => p.path));
 
+		// Get all known project paths (saved + scanned)
+		const scannedPaths = this.getProjectPaths?.() ?? [];
+		const allKnownPaths = new Set([...savedPaths, ...scannedPaths]);
+
 		// Get frequent folders from history service
 		const frequentFolders = this.historyService.getFrequentFolders(config.minOpenCount);
 
 		return frequentFolders.filter((entry) => {
-			// Not already saved
-			if (savedPaths.has(entry.path)) {
+			// Not already a known project (saved or scanned)
+			if (allKnownPaths.has(entry.path)) {
 				return false;
 			}
 
