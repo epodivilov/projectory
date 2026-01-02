@@ -1,0 +1,501 @@
+{
+  "name": "projectory",
+  "displayName": "Projectory",
+  "description": "Project manager for VS Code with tags, git worktree support, and smart folder suggestions",
+  "version": "0.1.0",
+  "publisher": "epodivilov",
+  "author": {
+    "name": "Evgeny Podivilov"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/epodivilov/projectory"
+  },
+  "bugs": {
+    "url": "https://github.com/epodivilov/projectory/issues"
+  },
+  "homepage": "https://github.com/epodivilov/projectory#readme",
+  "engines": {
+    "vscode": "^1.107.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "project",
+    "manager",
+    "workspace",
+    "git",
+    "worktree",
+    "tags",
+    "organization"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "projectory",
+          "title": "Projectory",
+          "icon": "media/projectory-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "projectory": [
+        {
+          "id": "projectory.projectsView",
+          "name": "Projects",
+          "icon": "media/projectory-icon.svg",
+          "contextualTitle": "Projectory Projects"
+        },
+        {
+          "type": "webview",
+          "id": "projectory.detailsView",
+          "name": "Details",
+          "contextualTitle": "Project Details"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "projectory.projectsView",
+        "contents": "No projects folder configured.\n[Select Projects Folder](command:projectory.setRootFolder)\nSet the root folder containing your projects to get started.",
+        "when": "projectory.hasNoRootFolder"
+      }
+    ],
+    "commands": [
+      {
+        "command": "projectory.refreshProjects",
+        "title": "Refresh Projects",
+        "category": "Projectory",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "projectory.openProject",
+        "title": "Open",
+        "category": "Projectory",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "projectory.openInNewWindow",
+        "title": "Open in New Window",
+        "category": "Projectory",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "projectory.setRootFolder",
+        "title": "Set Root Folder",
+        "category": "Projectory"
+      },
+      {
+        "command": "projectory.toggleSelectProject",
+        "title": "Toggle Select Project",
+        "category": "Projectory"
+      },
+      {
+        "command": "projectory.toggleSelectRecentFolder",
+        "title": "Toggle Select Folder",
+        "category": "Projectory"
+      },
+      {
+        "command": "projectory.toggleSelectWorktree",
+        "title": "Toggle Select Worktree",
+        "category": "Projectory"
+      },
+      {
+        "command": "projectory.removeFromProjects",
+        "title": "Remove from Saved",
+        "category": "Projectory",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "projectory.saveToProjects",
+        "title": "Save",
+        "category": "Projectory",
+        "icon": "$(add)"
+      },
+      {
+        "command": "projectory.searchProjects",
+        "title": "Search Projects",
+        "category": "Projectory",
+        "icon": "$(search)"
+      },
+      {
+        "command": "projectory.sortByRecent",
+        "title": "Sort: By Date",
+        "category": "Projectory",
+        "toggled": "projectory.sortOrder == recent"
+      },
+      {
+        "command": "projectory.sortByAlphabetical",
+        "title": "Sort: By Name",
+        "category": "Projectory",
+        "toggled": "projectory.sortOrder == alphabetical"
+      },
+      {
+        "command": "projectory.sortAscending",
+        "title": "Sort: Ascending",
+        "category": "Projectory",
+        "toggled": "projectory.sortDirection == asc"
+      },
+      {
+        "command": "projectory.sortDescending",
+        "title": "Sort: Descending",
+        "category": "Projectory",
+        "toggled": "projectory.sortDirection == desc"
+      },
+      {
+        "command": "projectory.createTag",
+        "title": "Tags: Create",
+        "category": "Projectory",
+        "icon": "$(add)"
+      },
+      {
+        "command": "projectory.renameTag",
+        "title": "Rename Tag",
+        "category": "Projectory"
+      },
+      {
+        "command": "projectory.deleteTag",
+        "title": "Delete Tag",
+        "category": "Projectory",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "projectory.editProjectTags",
+        "title": "Edit Tags...",
+        "category": "Projectory",
+        "icon": "$(tag)"
+      },
+      {
+        "command": "projectory.viewFlat",
+        "title": "View: Flat List",
+        "category": "Projectory",
+        "toggled": "projectory.viewMode == flat"
+      },
+      {
+        "command": "projectory.viewByTags",
+        "title": "View: By Tags",
+        "category": "Projectory",
+        "toggled": "projectory.viewMode == byTags"
+      },
+      {
+        "command": "projectory.filterByTag",
+        "title": "Filter: By Tag...",
+        "category": "Projectory",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "projectory.clearFilter",
+        "title": "Filter: Clear",
+        "category": "Projectory"
+      },
+      {
+        "command": "projectory.setGroupingDepth",
+        "title": "Tags: Grouping Depth...",
+        "category": "Projectory"
+      },
+      {
+        "command": "projectory.changeTagPriority",
+        "title": "Change Priority...",
+        "category": "Projectory"
+      },
+      {
+        "command": "projectory.rescanProjects",
+        "title": "Rescan Root Folder",
+        "category": "Projectory",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "projectory.resetAllData",
+        "title": "Reset All Data...",
+        "category": "Projectory"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "projectory.menu",
+        "label": "Projectory Menu",
+        "icon": "$(ellipsis)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "projectory.refreshProjects",
+          "when": "view == projectory.projectsView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "projectory.searchProjects",
+          "when": "view == projectory.projectsView",
+          "group": "navigation@2"
+        },
+        {
+          "submenu": "projectory.menu",
+          "when": "view == projectory.projectsView",
+          "group": "navigation@3"
+        }
+      ],
+      "projectory.menu": [
+        {
+          "command": "projectory.viewFlat",
+          "group": "1_view@1"
+        },
+        {
+          "command": "projectory.viewByTags",
+          "group": "1_view@2"
+        },
+        {
+          "command": "projectory.sortByRecent",
+          "group": "2_sort@1"
+        },
+        {
+          "command": "projectory.sortByAlphabetical",
+          "group": "2_sort@2"
+        },
+        {
+          "command": "projectory.sortAscending",
+          "group": "2_sort@3"
+        },
+        {
+          "command": "projectory.sortDescending",
+          "group": "2_sort@4"
+        },
+        {
+          "command": "projectory.filterByTag",
+          "group": "3_filter@1"
+        },
+        {
+          "command": "projectory.clearFilter",
+          "group": "3_filter@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "projectory.openProject",
+          "alt": "projectory.openInNewWindow",
+          "when": "view == projectory.projectsView && viewItem =~ /savedProject|scannedProject/",
+          "group": "inline"
+        },
+        {
+          "command": "projectory.openInNewWindow",
+          "when": "view == projectory.projectsView && viewItem =~ /savedProject|scannedProject/",
+          "group": "navigation@1"
+        },
+        {
+          "command": "projectory.editProjectTags",
+          "when": "view == projectory.projectsView && viewItem =~ /savedProject|scannedProject/",
+          "group": "tags@1"
+        },
+        {
+          "command": "projectory.removeFromProjects",
+          "when": "view == projectory.projectsView && viewItem =~ /savedProject|scannedProject/",
+          "group": "modification@1"
+        },
+        {
+          "command": "projectory.renameTag",
+          "when": "view == projectory.projectsView && viewItem == projectTag",
+          "group": "modification@1"
+        },
+        {
+          "command": "projectory.changeTagPriority",
+          "when": "view == projectory.projectsView && viewItem == projectTag",
+          "group": "modification@2"
+        },
+        {
+          "command": "projectory.deleteTag",
+          "when": "view == projectory.projectsView && viewItem == projectTag",
+          "group": "modification@3"
+        },
+        {
+          "command": "projectory.openProject",
+          "alt": "projectory.openInNewWindow",
+          "when": "view == projectory.projectsView && viewItem == worktree",
+          "group": "inline"
+        },
+        {
+          "command": "projectory.openInNewWindow",
+          "when": "view == projectory.projectsView && viewItem == worktree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "projectory.openProject",
+          "alt": "projectory.openInNewWindow",
+          "when": "view == projectory.projectsView && viewItem == recentFolder",
+          "group": "inline"
+        },
+        {
+          "command": "projectory.openInNewWindow",
+          "when": "view == projectory.projectsView && viewItem == recentFolder",
+          "group": "navigation@1"
+        },
+        {
+          "command": "projectory.saveToProjects",
+          "when": "view == projectory.projectsView && viewItem == recentFolder",
+          "group": "modification@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Projectory",
+      "properties": {
+        "projectory.rootFolder": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the folder containing all your projects. [Select folder](command:projectory.setRootFolder)",
+          "scope": "machine",
+          "order": 1
+        },
+        "projectory.viewMode": {
+          "type": "string",
+          "enum": [
+            "flat",
+            "byTags"
+          ],
+          "enumDescriptions": [
+            "Flat list of projects",
+            "Projects grouped by tags"
+          ],
+          "default": "flat",
+          "description": "How to display projects in the tree view",
+          "order": 10
+        },
+        "projectory.sortOrder": {
+          "type": "string",
+          "enum": [
+            "recent",
+            "alphabetical"
+          ],
+          "enumDescriptions": [
+            "Sort by last opened date",
+            "Sort alphabetically by name"
+          ],
+          "default": "recent",
+          "description": "How to sort projects",
+          "order": 11
+        },
+        "projectory.sortDirection": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "enumDescriptions": [
+            "Ascending (A-Z, oldest first)",
+            "Descending (Z-A, newest first)"
+          ],
+          "default": "desc",
+          "description": "Sort direction",
+          "order": 12
+        },
+        "projectory.showRecentFolders": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show recently opened folders in the projects list",
+          "order": 21
+        },
+        "projectory.tags": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "default": {},
+          "markdownDescription": "Tags for organizing projects. Key = tag name, Value = priority level (0 = primary, 1 = secondary, etc.)",
+          "order": 30
+        },
+        "projectory.groupingDepth": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 10,
+          "description": "How many tag priority levels to show in grouped view (0 = only top level)",
+          "order": 31
+        },
+        "projectory.maxScanDepth": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 5,
+          "description": "Maximum folder depth when scanning for projects",
+          "order": 40
+        },
+        "projectory.excludePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "node_modules",
+            ".git",
+            "vendor",
+            "dist",
+            "build"
+          ],
+          "description": "Folder patterns to exclude when scanning",
+          "order": 41
+        },
+        "projectory.suggestFrequentFolders": {
+          "type": "boolean",
+          "default": true,
+          "description": "Suggest saving frequently opened folders",
+          "order": 50
+        },
+        "projectory.suggestMinOpenCount": {
+          "type": "number",
+          "default": 5,
+          "minimum": 2,
+          "maximum": 50,
+          "description": "Minimum opens before suggesting to save a folder",
+          "order": 51
+        },
+        "projectory.suggestTimePeriodDays": {
+          "type": "number",
+          "default": 14,
+          "minimum": 1,
+          "maximum": 365,
+          "description": "Time period (days) for suggestion frequency",
+          "order": 52
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm run package",
+    "compile": "pnpm run check-types && pnpm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "pnpm run check-types && pnpm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "~25.0.3",
+    "@types/vscode": "^1.107.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.27.1",
+    "eslint": "^9.39.1",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.51.0"
+  },
+  "dependencies": {
+    "@vscode-elements/elements": "^2.4.0",
+    "@vscode/codicons": "^0.0.44",
+    "lit": "^3.2.1"
+  }
+}
