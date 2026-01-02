@@ -63,17 +63,15 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}, 3000);
 
-	// Refresh when view becomes visible
+	// Always load projects on activation (needed for suggestions and other features)
+	await projectsTreeProvider.refresh();
+
+	// Refresh when view becomes visible (in case data changed while hidden)
 	const visibilityListener = projectsTreeView.onDidChangeVisibility(async (e) => {
 		if (e.visible) {
 			await projectsTreeProvider.refresh();
 		}
 	});
-
-	// Initial refresh if visible
-	if (projectsTreeView.visible) {
-		await projectsTreeProvider.refresh();
-	}
 
 	// Register details webview provider
 	const detailsViewDisposable = vscode.window.registerWebviewViewProvider(
