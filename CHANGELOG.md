@@ -5,6 +5,16 @@ All notable changes to the "Projectory" extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-01-02
+
+### Fixed
+- Projects now load on activation, ensuring suggestions work correctly even before opening the sidebar
+
+### Changed
+- Added "SCM Providers" category for better marketplace discoverability
+- Added marketplace badges to README
+- Expanded keywords for improved search visibility
+
 ## [0.1.2] - 2026-01-02
 
 ### Fixed
