@@ -3,6 +3,10 @@ import { customElement, property } from 'lit/decorators.js';
 import '@vscode-elements/elements/dist/vscode-icon/index.js';
 import type { GitInfo } from '../../types/webview-types.js';
 
+declare function acquireVsCodeApi(): {
+	postMessage(message: unknown): void;
+};
+
 @customElement('git-info-section')
 export class GitInfoSection extends LitElement {
 	static styles = css`
@@ -50,6 +54,12 @@ export class GitInfoSection extends LitElement {
 			color: var(--vscode-textLink-foreground);
 			font-size: 11px;
 			word-break: break-all;
+			text-decoration: none;
+			cursor: pointer;
+		}
+
+		.remote:hover {
+			text-decoration: underline;
 		}
 	`;
 
@@ -66,6 +76,19 @@ export class GitInfoSection extends LitElement {
 		formatted = formatted.replace(/^https?:\/\//, '');
 
 		return formatted;
+	}
+
+	private getHttpsUrl(url: string): string {
+		// git@github.com:user/repo.git → https://github.com/user/repo
+		return url
+			.replace(/^git@([^:]+):/, 'https://$1/')
+			.replace(/\.git$/, '');
+	}
+
+	private handleRemoteClick(e: Event, url: string): void {
+		e.preventDefault();
+		const vscode = acquireVsCodeApi();
+		vscode.postMessage({ command: 'openUrl', payload: { url } });
 	}
 
 	render() {
@@ -86,7 +109,11 @@ export class GitInfoSection extends LitElement {
 				? html`
 					<div class="row">
 						<vscode-icon name="remote"></vscode-icon>
-						<span class="remote">${this.formatRemoteUrl(this.gitInfo.remoteUrl)}</span>
+						<a
+							class="remote"
+							href="${this.getHttpsUrl(this.gitInfo.remoteUrl)}"
+							@click=${(e: Event) => this.handleRemoteClick(e, this.getHttpsUrl(this.gitInfo!.remoteUrl!))}
+						>${this.formatRemoteUrl(this.gitInfo.remoteUrl)}</a>
 					</div>
 				`
 				: nothing}
