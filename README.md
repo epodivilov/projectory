@@ -1,5 +1,9 @@
 # Projectory
 
+[![Version](https://img.shields.io/visual-studio-marketplace/v/epodivilov.projectory)](https://marketplace.visualstudio.com/items?itemName=epodivilov.projectory)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/epodivilov.projectory)](https://marketplace.visualstudio.com/items?itemName=epodivilov.projectory)
+[![Rating](https://img.shields.io/visual-studio-marketplace/r/epodivilov.projectory)](https://marketplace.visualstudio.com/items?itemName=epodivilov.projectory)
+
 A VS Code extension for managing your projects with tags, git worktree support, and smart folder suggestions.
 
 ## Features

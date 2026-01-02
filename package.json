@@ -24,8 +24,13 @@
     "vscode": "^1.107.0"
   },
   "categories": [
+    "SCM Providers",
     "Other"
   ],
+  "galleryBanner": {
+    "color": "#0d1117",
+    "theme": "dark"
+  },
   "keywords": [
     "project",
     "manager",
@@ -33,7 +38,12 @@
     "git",
     "worktree",
     "tags",
-    "organization"
+    "organization",
+    "folder",
+    "switcher",
+    "monorepo",
+    "projects",
+    "recent"
   ],
   "activationEvents": [
     "onStartupFinished"
