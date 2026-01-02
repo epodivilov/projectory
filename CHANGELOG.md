@@ -5,6 +5,16 @@ All notable changes to the "Projectory" extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-01-02
+
+### Fixed
+- Icons now display correctly in Details panel (codicons bundled properly)
+- Notification no longer suggests saving already known projects
+
+### Changed
+- Repository URL in Details panel is now clickable (opens in browser)
+- Improved extension icon visibility for dark themes
+
 ## [0.1.1] - 2026-01-02
 
 ### Added
