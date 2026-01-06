@@ -198,6 +198,12 @@ export class SuggestionService {
     if (this.shownThisSession.has(entry.path)) {
       return;
     }
+
+    // Re-check if project was saved (e.g., from another window) before showing
+    if (this.savedProjectsService.isSaved(entry.path)) {
+      return;
+    }
+
     this.shownThisSession.add(entry.path);
 
     const folderName = path.basename(entry.path);
