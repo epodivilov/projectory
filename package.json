@@ -2,7 +2,7 @@
   "name": "projectory",
   "displayName": "Projectory",
   "description": "Project manager for VS Code with tags, git worktree support, and smart folder suggestions",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "publisher": "epodivilov",
   "author": {
     "name": "Evgeny Podivilov"
