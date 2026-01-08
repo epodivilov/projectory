@@ -43,6 +43,8 @@ export interface DetailItem {
 	gitInfo?: GitInfo;
 	isProject?: boolean;
 	isSaved?: boolean;
+	displayName?: string;
+	description?: string;
 }
 
 /**
@@ -52,6 +54,8 @@ export interface SavedProject {
 	name: string;
 	path: string;
 	savedAt: number;
+	displayName?: string;
+	description?: string;
 }
 
 /**

@@ -27,6 +27,8 @@ export interface DetailItem {
 	gitInfo?: GitInfo;
 	isProject?: boolean;
 	isSaved?: boolean;
+	displayName?: string;
+	description?: string;
 }
 
 /**

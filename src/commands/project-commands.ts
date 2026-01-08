@@ -116,6 +116,50 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 		}
 	);
 
+	const renameProjectCommand = vscode.commands.registerCommand(
+		'projectory.renameProject',
+		async (item: ProjectTreeItem) => {
+			const currentDisplayName = ctx.savedProjectsService.getDisplayName(item.project.path);
+			const newName = await vscode.window.showInputBox({
+				prompt: 'Enter project name',
+				value: currentDisplayName ?? item.project.name,
+				placeHolder: item.project.name
+			});
+
+			if (newName === undefined) {
+				return;
+			}
+
+			ctx.savedProjectsService.updateProject(item.project.path, {
+				displayName: newName.trim()
+			});
+			await ctx.projectsTreeProvider.refresh();
+			await ctx.detailsWebviewProvider.refreshCurrentItem();
+		}
+	);
+
+	const editProjectDescriptionCommand = vscode.commands.registerCommand(
+		'projectory.editProjectDescription',
+		async (item: ProjectTreeItem) => {
+			const currentDescription = ctx.savedProjectsService.getDescription(item.project.path);
+			const newDescription = await vscode.window.showInputBox({
+				prompt: 'Enter project description',
+				value: currentDescription ?? '',
+				placeHolder: 'A short description of the project'
+			});
+
+			if (newDescription === undefined) {
+				return;
+			}
+
+			ctx.savedProjectsService.updateProject(item.project.path, {
+				description: newDescription.trim()
+			});
+			ctx.projectsTreeProvider.fireChange();
+			await ctx.detailsWebviewProvider.refreshCurrentItem();
+		}
+	);
+
 	return [
 		openProjectCommand,
 		openInNewWindowCommand,
@@ -123,6 +167,8 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 		toggleSelectRecentFolderCommand,
 		toggleSelectWorktreeCommand,
 		removeFromProjectsCommand,
-		saveToProjectsCommand
+		saveToProjectsCommand,
+		renameProjectCommand,
+		editProjectDescriptionCommand
 	];
 }

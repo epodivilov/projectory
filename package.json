@@ -229,6 +229,16 @@
         "command": "projectory.resetAllData",
         "title": "Reset All Data...",
         "category": "Projectory"
+      },
+      {
+        "command": "projectory.renameProject",
+        "title": "Rename Project...",
+        "category": "Projectory"
+      },
+      {
+        "command": "projectory.editProjectDescription",
+        "title": "Edit Description...",
+        "category": "Projectory"
       }
     ],
     "submenus": [
@@ -301,6 +311,16 @@
           "command": "projectory.openInNewWindow",
           "when": "view == projectory.projectsView && viewItem =~ /savedProject|scannedProject/",
           "group": "navigation@1"
+        },
+        {
+          "command": "projectory.renameProject",
+          "when": "view == projectory.projectsView && viewItem =~ /savedProject|scannedProject/",
+          "group": "edit@1"
+        },
+        {
+          "command": "projectory.editProjectDescription",
+          "when": "view == projectory.projectsView && viewItem =~ /savedProject|scannedProject/",
+          "group": "edit@2"
         },
         {
           "command": "projectory.editProjectTags",

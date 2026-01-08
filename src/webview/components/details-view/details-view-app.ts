@@ -106,9 +106,19 @@ export class DetailsViewApp extends LitElement {
 			`;
 		}
 
+		const headerName = this.detail.displayName || this.detail.name;
+
 		return html`
 			<div class="details">
-				<details-header name="${this.detail.name}"></details-header>
+				<details-header name="${headerName}"></details-header>
+
+				${this.detail.description
+					? html`
+						<details-section label="Description">
+							${this.detail.description}
+						</details-section>
+					`
+					: nothing}
 
 				<details-section label="Path" isPath>
 					${this.detail.path}

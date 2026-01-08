@@ -41,6 +41,37 @@ export class SavedProjectsService {
 		return this.getSavedProjects().some((p) => p.path === folderPath);
 	}
 
+	updateProject(folderPath: string, updates: { displayName?: string; description?: string }): void {
+		// Auto-save project if not already saved
+		if (!this.isSaved(folderPath)) {
+			this.saveProject(folderPath);
+		}
+
+		const saved = this.getSavedProjects();
+		const index = saved.findIndex((p) => p.path === folderPath);
+		if (index === -1) {
+			return;
+		}
+
+		if (updates.displayName !== undefined) {
+			saved[index].displayName = updates.displayName || undefined;
+		}
+		if (updates.description !== undefined) {
+			saved[index].description = updates.description || undefined;
+		}
+		this.globalState.update(SAVED_PROJECTS_KEY, saved);
+	}
+
+	getDisplayName(folderPath: string): string | undefined {
+		const project = this.getSavedProjects().find((p) => p.path === folderPath);
+		return project?.displayName;
+	}
+
+	getDescription(folderPath: string): string | undefined {
+		const project = this.getSavedProjects().find((p) => p.path === folderPath);
+		return project?.description;
+	}
+
 	toProjects(): Project[] {
 		return this.getSavedProjects().map((saved) => ({
 			name: saved.name,

@@ -40,10 +40,12 @@ export class ProjectTreeItem extends FolderTreeItem {
     public readonly isSaved: boolean,
     isCurrent: boolean,
     tagDescription?: string,
-    isWorktreeCurrent?: boolean
+    isWorktreeCurrent?: boolean,
+    displayName?: string,
+    projectDescription?: string
   ) {
     super(
-      project.name,
+      displayName ?? project.name,
       project.path,
       project.uri,
       isCurrent,
@@ -74,6 +76,14 @@ export class ProjectTreeItem extends FolderTreeItem {
     } else if (isWorktreeCurrent && !isCurrent) {
       this.description = "(worktree open)";
     }
+
+    // Override tooltip with displayName, description and path
+    this.tooltip = new vscode.MarkdownString();
+    this.tooltip.appendMarkdown(`**${displayName ?? project.name}**\n\n`);
+    if (projectDescription) {
+      this.tooltip.appendMarkdown(`${projectDescription}\n\n`);
+    }
+    this.tooltip.appendMarkdown(`\`${project.path}\``);
   }
 }
 
@@ -444,8 +454,10 @@ export class ProjectsTreeProvider
 
       const isSaved = this.savedProjectsService.isSaved(project.path);
       const isCurrent = project.path === currentPath;
+      const displayName = this.savedProjectsService.getDisplayName(project.path);
+      const projectDescription = this.savedProjectsService.getDescription(project.path);
       items.push(
-        new ProjectTreeItem(project, isSaved, isCurrent, tagDescription)
+        new ProjectTreeItem(project, isSaved, isCurrent, tagDescription, false, displayName, projectDescription)
       );
     }
 
@@ -591,6 +603,8 @@ export class ProjectsTreeProvider
       project,
       currentPath
     );
+    const displayName = this.savedProjectsService.getDisplayName(project.path);
+    const projectDescription = this.savedProjectsService.getDescription(project.path);
 
     let tagDescription: string | undefined;
     if (showTags) {
@@ -610,7 +624,9 @@ export class ProjectsTreeProvider
       isSaved,
       isCurrent,
       tagDescription,
-      isWorktreeCurrent
+      isWorktreeCurrent,
+      displayName,
+      projectDescription
     );
   }
 

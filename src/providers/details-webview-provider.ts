@@ -98,7 +98,7 @@ export class DetailsWebviewProvider implements vscode.WebviewViewProvider {
 	/**
 	 * Refresh current item details
 	 */
-	private async refreshCurrentItem(): Promise<void> {
+	async refreshCurrentItem(): Promise<void> {
 		if (!this._currentPath) {
 			return;
 		}
@@ -119,6 +119,8 @@ export class DetailsWebviewProvider implements vscode.WebviewViewProvider {
 		const gitInfo = await getGitInfo(item.path);
 		const lastOpened = this.historyService.getLastOpened(item.path);
 		const isSaved = this.savedProjectsService.isSaved(item.path);
+		const displayName = this.savedProjectsService.getDisplayName(item.path);
+		const description = this.savedProjectsService.getDescription(item.path);
 
 		const detail: DetailItem = {
 			name: item.name,
@@ -126,7 +128,9 @@ export class DetailsWebviewProvider implements vscode.WebviewViewProvider {
 			lastOpened,
 			gitInfo,
 			isProject: this._currentIsProject,
-			isSaved
+			isSaved,
+			displayName,
+			description
 		};
 
 		this._view.webview.postMessage({
