@@ -199,8 +199,12 @@ export class SuggestionService {
       return;
     }
 
-    // Re-check if project was saved (e.g., from another window) before showing
+    // Re-check if project is already known (saved or scanned) before showing
     if (this.savedProjectsService.isSaved(entry.path)) {
+      return;
+    }
+    const scannedPaths = this.getProjectPaths?.() ?? [];
+    if (scannedPaths.includes(entry.path)) {
       return;
     }
 
