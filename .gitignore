@@ -7,3 +7,5 @@ node_modules
 # Claude AI
 CLAUDE.md
 .claude/
+
+*.local
