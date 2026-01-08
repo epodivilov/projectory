@@ -5,6 +5,14 @@ All notable changes to the "Projectory" extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.5] - 2026-01-08
+
+### Added
+- Project renaming and description editing via context menu
+
+### Fixed
+- Suggestion notification no longer appears for scanned projects
+
 ## [0.1.4] - 2026-01-06
 
 ### Fixed
