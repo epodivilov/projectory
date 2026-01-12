@@ -169,6 +169,11 @@ export class SuggestionService {
         return false;
       }
 
+      // Skip .worktrees directories
+      if (entry.path.includes('.worktrees')) {
+        return false;
+      }
+
       return true;
     });
   }

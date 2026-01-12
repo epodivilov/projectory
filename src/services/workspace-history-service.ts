@@ -268,6 +268,35 @@ export class WorkspaceHistoryService {
 	}
 
 	/**
+	 * Clean up worktree entries from history.
+	 * Removes entries that are linked worktrees or in .worktrees directories.
+	 * @returns number of removed entries
+	 */
+	cleanupWorktreeEntries(): number {
+		const history = this.getHistory();
+		let removedCount = 0;
+
+		for (const entryPath of Object.keys(history)) {
+			// Remove worktrees (detected by .git file)
+			if (isWorktreePath(entryPath)) {
+				delete history[entryPath];
+				removedCount++;
+				continue;
+			}
+			// Remove .worktrees directories
+			if (entryPath.includes('.worktrees')) {
+				delete history[entryPath];
+				removedCount++;
+			}
+		}
+
+		if (removedCount > 0) {
+			this.globalState.update(WORKSPACE_HISTORY_KEY, history);
+		}
+		return removedCount;
+	}
+
+	/**
 	 * Get raw history map
 	 */
 	private getHistory(): Record<string, WorkspaceHistoryEntry> {

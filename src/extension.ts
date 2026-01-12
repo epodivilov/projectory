@@ -27,6 +27,7 @@ let suggestionTimeoutId: ReturnType<typeof setTimeout> | null = null;
 export async function activate(context: vscode.ExtensionContext) {
 	// Initialize services
 	historyService = new WorkspaceHistoryService(context.globalState);
+	historyService.cleanupWorktreeEntries(); // Clean up legacy worktree entries
 	savedProjectsService = new SavedProjectsService(context.globalState);
 	tagService = new TagService();
 	metadataService = new ProjectMetadataService(context.globalState);
@@ -36,7 +37,19 @@ export async function activate(context: vscode.ExtensionContext) {
 		context.globalState,
 		historyService,
 		savedProjectsService,
-		() => projectsTreeProvider.getProjects().map((p) => p.path)
+		() => {
+			const projects = projectsTreeProvider.getProjects();
+			const paths: string[] = [];
+			for (const p of projects) {
+				paths.push(p.path);
+				if (p.worktrees) {
+					for (const w of p.worktrees) {
+						paths.push(w.path);
+					}
+				}
+			}
+			return paths;
+		}
 	);
 
 	// Create tree view
