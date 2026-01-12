@@ -5,6 +5,12 @@ All notable changes to the "Projectory" extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.6] - 2026-01-12
+
+### Fixed
+- Suggestion notification no longer appears for git worktrees
+- Legacy worktree entries are now automatically cleaned up from history
+
 ## [0.1.5] - 2026-01-08
 
 ### Added
