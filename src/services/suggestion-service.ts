@@ -9,6 +9,7 @@ import type {
 } from "./workspace-history-service";
 import type { SavedProjectsService } from "./saved-projects-service";
 import { isWorktreePath } from "./git-info-service";
+import { normalizePath, createNormalizedPathSet, normalizedSetHas } from "../utils/path-utils";
 
 const IGNORED_SUGGESTIONS_KEY = "ignoredSuggestionPaths";
 const POSTPONED_SUGGESTIONS_KEY = "postponedSuggestions";
@@ -120,18 +121,20 @@ export class SuggestionService {
     const now = Date.now();
     const periodStart = now - config.timePeriodDays * 24 * 60 * 60 * 1000;
 
-    const ignoredPaths = new Set(this.getIgnoredPaths());
-    const postponedPaths = new Set(
+    const ignoredPaths = createNormalizedPathSet(this.getIgnoredPaths());
+    const postponedPaths = createNormalizedPathSet(
       this.getPostponedSuggestions()
         .filter((s) => !this.isPostponeExpired(s))
         .map((s) => s.path)
     );
     const savedProjects = this.savedProjectsService.getSavedProjects();
-    const savedPaths = new Set(savedProjects.map((p) => p.path));
 
-    // Get all known project paths (saved + scanned)
+    // Get all known project paths (saved + scanned) with normalized paths
     const scannedPaths = this.getProjectPaths?.() ?? [];
-    const allKnownPaths = new Set([...savedPaths, ...scannedPaths]);
+    const allKnownPaths = createNormalizedPathSet([
+      ...savedProjects.map((p) => p.path),
+      ...scannedPaths,
+    ]);
 
     // Get frequent folders from history service
     const frequentFolders = this.historyService.getFrequentFolders(
@@ -140,17 +143,17 @@ export class SuggestionService {
 
     return frequentFolders.filter((entry) => {
       // Not already a known project (saved or scanned)
-      if (allKnownPaths.has(entry.path)) {
+      if (normalizedSetHas(allKnownPaths, entry.path)) {
         return false;
       }
 
       // Not ignored
-      if (ignoredPaths.has(entry.path)) {
+      if (normalizedSetHas(ignoredPaths, entry.path)) {
         return false;
       }
 
       // Not postponed (and not expired)
-      if (postponedPaths.has(entry.path)) {
+      if (normalizedSetHas(postponedPaths, entry.path)) {
         return false;
       }
 
@@ -189,10 +192,10 @@ export class SuggestionService {
       return null;
     }
 
-    const currentPath = workspaceFolders[0].uri.fsPath;
+    const currentPath = normalizePath(workspaceFolders[0].uri.fsPath);
     const suggestible = this.getSuggestibleFolders(config);
 
-    return suggestible.find((entry) => entry.path === currentPath) || null;
+    return suggestible.find((entry) => normalizePath(entry.path) === currentPath) || null;
   }
 
   /**
@@ -208,8 +211,8 @@ export class SuggestionService {
     if (this.savedProjectsService.isSaved(entry.path)) {
       return;
     }
-    const scannedPaths = this.getProjectPaths?.() ?? [];
-    if (scannedPaths.includes(entry.path)) {
+    const scannedPathSet = createNormalizedPathSet(this.getProjectPaths?.() ?? []);
+    if (normalizedSetHas(scannedPathSet, entry.path)) {
       return;
     }
 

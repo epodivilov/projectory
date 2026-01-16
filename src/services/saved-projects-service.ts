@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import type { SavedProject, Project } from '../types';
+import { normalizePath } from '../utils/path-utils';
 
 const SAVED_PROJECTS_KEY = 'savedProjects';
 const EXCLUDED_PATHS_KEY = 'excludedPaths';
@@ -38,7 +39,8 @@ export class SavedProjectsService {
 	}
 
 	isSaved(folderPath: string): boolean {
-		return this.getSavedProjects().some((p) => p.path === folderPath);
+		const normalized = normalizePath(folderPath);
+		return this.getSavedProjects().some((p) => normalizePath(p.path) === normalized);
 	}
 
 	updateProject(folderPath: string, updates: { displayName?: string; description?: string }): void {
