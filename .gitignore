@@ -6,6 +6,9 @@ node_modules
 
 # Claude AI
 CLAUDE.md
-.claude/
+.claude
 
 *.local
+
+backlog
+.worktreekitrc
