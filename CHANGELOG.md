@@ -5,6 +5,16 @@ All notable changes to the "Projectory" extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.8] - 2026-02-11
+
+### Fixed
+- Projects now load before scheduling suggestions, preventing missed notifications on startup
+
+## [0.1.7] - 2026-01-16
+
+### Fixed
+- Paths are now normalized for case-insensitive filesystem comparison (fixes duplicate detection on macOS)
+
 ## [0.1.6] - 2026-01-12
 
 ### Fixed
