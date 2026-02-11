@@ -63,7 +63,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Record current workspace in history
 	historyService.recordCurrentWorkspace();
 
-	// Folder suggestions (delayed to avoid startup overhead)
+	// Always load projects on activation (needed for suggestions and other features)
+	await projectsTreeProvider.refresh();
+
+	// Folder suggestions (delayed to avoid startup overhead, but after projects are loaded)
 	suggestionTimeoutId = setTimeout(async () => {
 		try {
 			const suggestionConfig = getSuggestionConfig();
@@ -75,9 +78,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			console.error('Error showing folder suggestion:', error);
 		}
 	}, 3000);
-
-	// Always load projects on activation (needed for suggestions and other features)
-	await projectsTreeProvider.refresh();
 
 	// Refresh when view becomes visible (in case data changed while hidden)
 	const visibilityListener = projectsTreeView.onDidChangeVisibility(async (e) => {
