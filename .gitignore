@@ -11,4 +11,4 @@ CLAUDE.md
 *.local
 
 backlog
-.worktreekitrc
+.worktreekit.jsonc
