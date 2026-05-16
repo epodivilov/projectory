@@ -22,12 +22,13 @@
         "statusBar.background": "#8e3a0f",
         "statusBar.foreground": "#e7e7e7",
         "statusBarItem.hoverBackground": "#bc4d14",
-        "statusBarItem.remoteBackground": "#8e3a0f",
-        "statusBarItem.remoteForeground": "#e7e7e7",
+        "statusBarItem.remoteBackground": "#ef5e0f",
+		"statusBarItem.remoteForeground": "#ffffff",
         "titleBar.activeBackground": "#8e3a0f",
         "titleBar.activeForeground": "#e7e7e7",
         "titleBar.inactiveBackground": "#8e3a0f99",
         "titleBar.inactiveForeground": "#e7e7e799"
     },
-    "peacock.color": "#8e3a0f"
+    "peacock.color": "#8e3a0f",
+    "peacock.remoteColor": "#8e3a0f"
 }
