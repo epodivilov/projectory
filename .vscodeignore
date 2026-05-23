@@ -16,3 +16,8 @@ CLAUDE.md
 .claude/
 pnpm-lock.yaml
 .npmrc
+.github/**
+cliff.toml
+CONTRIBUTING.md
+RELEASE_NOTES.md
+**/*.vsix

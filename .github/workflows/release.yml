@@ -1,0 +1,133 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version bump"
+        required: false
+        default: "auto"
+        type: choice
+        options:
+          - auto # git-cliff decides from conventional commits
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine version (auto)
+        if: inputs.version == 'auto'
+        id: cliff-bump
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --bumped-version
+
+      - name: Determine version
+        id: version
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "${{ inputs.version }}" = "auto" ]; then
+            VERSION=$(echo "${{ steps.cliff-bump.outputs.content }}" | sed 's/^v//')
+          else
+            VERSION=$(npx --yes semver -i "${{ inputs.version }}" "$CURRENT")
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "::error::Failed to determine version"
+            exit 1
+          fi
+          if [ "$VERSION" = "$CURRENT" ]; then
+            echo "::error::No version bump — no releasable commits since v$CURRENT. Use patch/minor/major to force."
+            exit 1
+          fi
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag v$VERSION already exists"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$VERSION (from v$CURRENT)"
+
+      - name: Bump package.json
+        run: pnpm version "${{ steps.version.outputs.version }}" --no-git-tag-version
+
+      - name: Update CHANGELOG.md
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --unreleased --tag v${{ steps.version.outputs.version }} --prepend CHANGELOG.md
+
+      - name: Generate release notes
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --unreleased --tag v${{ steps.version.outputs.version }} --strip all
+        env:
+          OUTPUT: RELEASE_NOTES.md
+
+      - name: Package extension
+        run: pnpm exec vsce package --no-dependencies
+
+      - name: Commit, tag and push
+        run: |
+          git add package.json CHANGELOG.md
+          git commit -m "chore: release v${{ steps.version.outputs.version }}"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin "HEAD:${{ github.ref_name }}" --tags
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          files: projectory-${{ steps.version.outputs.version }}.vsix
+
+      # --- Publishing (auto-skips until the matching secret is set) ---
+      - name: Detect publish tokens
+        id: tokens
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          [ -n "$VSCE_PAT" ] && echo "vsce=true" >> "$GITHUB_OUTPUT" || true
+          [ -n "$OVSX_PAT" ] && echo "ovsx=true" >> "$GITHUB_OUTPUT" || true
+
+      - name: Publish to VS Code Marketplace
+        if: steps.tokens.outputs.vsce == 'true'
+        run: pnpm exec vsce publish --no-dependencies --packagePath "projectory-${{ steps.version.outputs.version }}.vsix"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Publish to Open VSX
+        if: steps.tokens.outputs.ovsx == 'true'
+        run: npx --yes ovsx publish "projectory-${{ steps.version.outputs.version }}.vsix" -p "$OVSX_PAT"
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
