@@ -5,6 +5,13 @@ All notable changes to the "Projectory" extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+
+## [0.1.9] - 2026-05-24
+
+### Fixed
+
+- Use pnpm dlx semver for manual version bump (#3)
+
 ## [0.1.8] - 2026-02-11
 
 ### Fixed
