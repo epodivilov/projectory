@@ -58,7 +58,7 @@ jobs:
           if [ "${{ inputs.version }}" = "auto" ]; then
             VERSION=$(echo "${{ steps.cliff-bump.outputs.content }}" | sed 's/^v//')
           else
-            VERSION=$(npx --yes semver -i "${{ inputs.version }}" "$CURRENT")
+            VERSION=$(pnpm dlx semver -i "${{ inputs.version }}" "$CURRENT")
           fi
           if [ -z "$VERSION" ]; then
             echo "::error::Failed to determine version"
