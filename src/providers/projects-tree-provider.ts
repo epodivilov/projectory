@@ -16,6 +16,7 @@ import { ProjectMetadataService } from "../services/project-metadata-service";
 import { scanProjects } from "../services/project-scanner";
 import { initializeProjectTimestamps } from "../services/git-info-service";
 import { getConfig } from "../services/configuration-service";
+import { computeDisplayNames } from "../utils/path-utils";
 
 const DRAG_MIME_TYPE = "application/vnd.code.tree.projectoryprojects";
 
@@ -708,7 +709,8 @@ export class ProjectsTreeProvider
 
     this._projects = [...filteredScanned, ...uniqueSaved];
 
-    // Load recent folders (excludes projects)
+    // Load recent folders before renaming projects: getRecentFolders relies on
+    // the raw folder-name (basename) of projects for its .worktrees heuristic.
     if (config.showRecentFolders) {
       this._recentFolders = this.historyService.getRecentFolders(
         this._projects
@@ -716,6 +718,12 @@ export class ProjectsTreeProvider
     } else {
       this._recentFolders = [];
     }
+
+    // Disambiguate display names so projects sharing a last path segment
+    // (e.g. a "{project}/root" worktree layout) don't all show the same name.
+    // A manually saved displayName still wins at render time.
+    this.applyDisplayNames(this._projects);
+    this.applyDisplayNames(this._recentFolders);
 
     // Initialize timestamps for new projects in background (non-blocking)
     initializeProjectTimestamps(this._projects, this.historyService)
@@ -727,6 +735,23 @@ export class ProjectsTreeProvider
       .catch((err) => {
         console.error("Error initializing project timestamps:", err);
       });
+  }
+
+  /**
+   * Overwrite each item's name with a disambiguated display name derived from
+   * its path. Only collisions on the last segment grow a parent prefix.
+   */
+  private applyDisplayNames(items: { name: string; path: string }[]): void {
+    if (items.length === 0) {
+      return;
+    }
+    const names = computeDisplayNames(items.map((item) => item.path));
+    for (const item of items) {
+      const name = names.get(item.path);
+      if (name) {
+        item.name = name;
+      }
+    }
   }
 
   /**
