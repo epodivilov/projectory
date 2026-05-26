@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { computeDisplayNames } from '../utils/path-utils';
 import { WorkspaceHistoryService } from '../services/workspace-history-service';
+import { TreeStateService } from '../services/tree-state-service';
 
 /**
  * Minimal in-memory Memento for testing services that depend on globalState.
@@ -113,5 +114,46 @@ suite('WorkspaceHistoryService recent management', () => {
 		service.clearHistory();
 
 		assert.strictEqual(service.getHistorySorted().length, 0);
+	});
+});
+
+suite('TreeStateService', () => {
+	test('returns undefined for an untouched node', () => {
+		const service = new TreeStateService(createMemento());
+		assert.strictEqual(service.isExpanded('projects-root'), undefined);
+	});
+
+	test('persists expanded state', () => {
+		const service = new TreeStateService(createMemento());
+		service.setExpanded('recent-root', true);
+		assert.strictEqual(service.isExpanded('recent-root'), true);
+	});
+
+	test('persists collapsed state', () => {
+		const service = new TreeStateService(createMemento());
+		service.setExpanded('projects-root', false);
+		assert.strictEqual(service.isExpanded('projects-root'), false);
+	});
+
+	test('overwrites a previously stored state', () => {
+		const service = new TreeStateService(createMemento());
+		service.setExpanded('tag-work', true);
+		service.setExpanded('tag-work', false);
+		assert.strictEqual(service.isExpanded('tag-work'), false);
+	});
+
+	test('keeps independent state per node id', () => {
+		const service = new TreeStateService(createMemento());
+		service.setExpanded('projects-root', true);
+		service.setExpanded('recent-root', false);
+		assert.strictEqual(service.isExpanded('projects-root'), true);
+		assert.strictEqual(service.isExpanded('recent-root'), false);
+	});
+
+	test('reads state back from a shared memento (survives restart)', () => {
+		const memento = createMemento();
+		new TreeStateService(memento).setExpanded('recent-root', true);
+		// A fresh service over the same store simulates a new session.
+		assert.strictEqual(new TreeStateService(memento).isExpanded('recent-root'), true);
 	});
 });

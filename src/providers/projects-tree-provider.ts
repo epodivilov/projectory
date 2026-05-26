@@ -13,6 +13,7 @@ import { WorkspaceHistoryService } from "../services/workspace-history-service";
 import { SavedProjectsService } from "../services/saved-projects-service";
 import { TagService } from "../services/tag-service";
 import { ProjectMetadataService } from "../services/project-metadata-service";
+import { TreeStateService } from "../services/tree-state-service";
 import { scanProjects } from "../services/project-scanner";
 import { initializeProjectTimestamps } from "../services/git-info-service";
 import { getConfig } from "../services/configuration-service";
@@ -116,14 +117,40 @@ export class ProjectsTreeProvider
     private readonly historyService: WorkspaceHistoryService,
     private readonly savedProjectsService: SavedProjectsService,
     private readonly tagService: TagService,
-    private readonly metadataService: ProjectMetadataService
+    private readonly metadataService: ProjectMetadataService,
+    private readonly treeStateService: TreeStateService
   ) {
     this._projects = [];
     this._isInitialized = true;
   }
 
   getTreeItem(element: ProjectsTreeElement): vscode.TreeItem {
+    // Restore persisted expand/collapse state for collapsible nodes the user
+    // has toggled before. Untouched (and dynamically added) nodes keep the
+    // default state set in their constructor.
+    if (
+      element.id &&
+      element.collapsibleState !== undefined &&
+      element.collapsibleState !== vscode.TreeItemCollapsibleState.None
+    ) {
+      const expanded = this.treeStateService.isExpanded(element.id);
+      if (expanded !== undefined) {
+        element.collapsibleState = expanded
+          ? vscode.TreeItemCollapsibleState.Expanded
+          : vscode.TreeItemCollapsibleState.Collapsed;
+      }
+    }
     return element;
+  }
+
+  /**
+   * Persist the expand/collapse state of a node, keyed by its stable id.
+   * Called from the tree view's onDidExpand/onDidCollapse listeners.
+   */
+  recordExpandState(element: ProjectsTreeElement, expanded: boolean): void {
+    if (element.id) {
+      this.treeStateService.setExpanded(element.id, expanded);
+    }
   }
 
   /**
