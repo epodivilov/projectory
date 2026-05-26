@@ -11,7 +11,7 @@ A VS Code extension for managing your projects with tags, git worktree support, 
 - **Project Tree View** - Browse all your projects from a dedicated sidebar
 - **Tag Organization** - Organize projects with priority-based tags and hierarchical grouping
 - **Git Worktree Support** - Automatically detects and displays git worktrees
-- **Recent Folders** - Quick access to recently opened folders
+- **Recent Folders** - Quick access to recently opened folders, with options to remove individual entries or clear the list
 - **Smart Suggestions** - Get notified when frequently opened folders could be saved as projects
 - **Drag & Drop** - Reorder and organize projects easily
 - **Search** - Quickly find projects with fuzzy search
@@ -48,6 +48,7 @@ All commands are available via the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+
 - `Projectory: Set Root Folder` - Configure the projects folder
 - `Projectory: Search Projects` - Quick search across all projects
 - `Projectory: Rescan Root Folder` - Rescan for new projects
+- `Projectory: Clear Recent Folders` - Remove all entries from the Recent list
 - `Projectory: Tags: Create` - Create a new tag
 - `Projectory: View: Flat List` - Switch to flat view
 - `Projectory: View: By Tags` - Switch to grouped tag view

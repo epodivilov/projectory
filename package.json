@@ -134,6 +134,18 @@
         "icon": "$(add)"
       },
       {
+        "command": "projectory.removeFromRecent",
+        "title": "Remove from Recent",
+        "category": "Projectory",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "projectory.clearRecentFolders",
+        "title": "Clear Recent Folders",
+        "category": "Projectory",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "projectory.searchProjects",
         "title": "Search Projects",
         "category": "Projectory",
@@ -373,6 +385,21 @@
           "command": "projectory.saveToProjects",
           "when": "view == projectory.projectsView && viewItem == recentFolder",
           "group": "modification@1"
+        },
+        {
+          "command": "projectory.removeFromRecent",
+          "when": "view == projectory.projectsView && viewItem == recentFolder",
+          "group": "inline"
+        },
+        {
+          "command": "projectory.removeFromRecent",
+          "when": "view == projectory.projectsView && viewItem == recentFolder",
+          "group": "modification@2"
+        },
+        {
+          "command": "projectory.clearRecentFolders",
+          "when": "view == projectory.projectsView && viewItem == recentRoot",
+          "group": "inline"
         }
       ]
     },

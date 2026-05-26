@@ -1,6 +1,23 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { computeDisplayNames } from '../utils/path-utils';
+import { WorkspaceHistoryService } from '../services/workspace-history-service';
+
+/**
+ * Minimal in-memory Memento for testing services that depend on globalState.
+ */
+function createMemento(): vscode.Memento {
+	const store = new Map<string, unknown>();
+	return {
+		keys: () => [...store.keys()],
+		get: (<T>(key: string, defaultValue?: T) =>
+			store.has(key) ? (store.get(key) as T) : defaultValue) as vscode.Memento['get'],
+		update: (key: string, value: unknown) => {
+			store.set(key, value);
+			return Promise.resolve();
+		}
+	};
+}
 
 suite('Projectory Extension Test Suite', () => {
 	test('Extension should be present', () => {
@@ -64,5 +81,37 @@ suite('computeDisplayNames', () => {
 		]);
 		assert.strictEqual(names.get('C:\\dev\\api\\root'), 'api/root');
 		assert.strictEqual(names.get('C:\\dev\\web\\root'), 'web/root');
+	});
+});
+
+suite('WorkspaceHistoryService recent management', () => {
+	test('removeFromHistory deletes only the given entry', () => {
+		const service = new WorkspaceHistoryService(createMemento());
+		service.recordOpen('/tmp/projectory-test-a');
+		service.recordOpen('/tmp/projectory-test-b');
+
+		service.removeFromHistory('/tmp/projectory-test-a');
+
+		const paths = service.getHistorySorted().map((entry) => entry.path);
+		assert.deepStrictEqual(paths, ['/tmp/projectory-test-b']);
+	});
+
+	test('removeFromHistory is a no-op for an unknown path', () => {
+		const service = new WorkspaceHistoryService(createMemento());
+		service.recordOpen('/tmp/projectory-test-a');
+
+		service.removeFromHistory('/tmp/projectory-test-missing');
+
+		assert.strictEqual(service.getHistorySorted().length, 1);
+	});
+
+	test('clearHistory removes all entries', () => {
+		const service = new WorkspaceHistoryService(createMemento());
+		service.recordOpen('/tmp/projectory-test-a');
+		service.recordOpen('/tmp/projectory-test-b');
+
+		service.clearHistory();
+
+		assert.strictEqual(service.getHistorySorted().length, 0);
 	});
 });
