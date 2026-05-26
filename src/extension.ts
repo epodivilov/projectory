@@ -5,6 +5,7 @@ import { WorkspaceHistoryService } from './services/workspace-history-service';
 import { SavedProjectsService } from './services/saved-projects-service';
 import { TagService } from './services/tag-service';
 import { ProjectMetadataService } from './services/project-metadata-service';
+import { TreeStateService } from './services/tree-state-service';
 import { getSuggestionConfig, onConfigChange } from './services/configuration-service';
 import { SuggestionService } from './services/suggestion-service';
 import { registerAllCommands, initializeViewContext, updateViewContextOnConfigChange, type CommandContext } from './commands';
@@ -31,8 +32,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	savedProjectsService = new SavedProjectsService(context.globalState);
 	tagService = new TagService();
 	metadataService = new ProjectMetadataService(context.globalState);
+	const treeStateService = new TreeStateService(context.globalState);
 	detailsWebviewProvider = new DetailsWebviewProvider(context.extensionUri, historyService, savedProjectsService);
-	projectsTreeProvider = new ProjectsTreeProvider(historyService, savedProjectsService, tagService, metadataService);
+	projectsTreeProvider = new ProjectsTreeProvider(historyService, savedProjectsService, tagService, metadataService, treeStateService);
 	suggestionService = new SuggestionService(
 		context.globalState,
 		historyService,
@@ -86,6 +88,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+	// Persist expand/collapse state so it survives reloads and restarts
+	const expandListener = projectsTreeView.onDidExpandElement((e) => {
+		projectsTreeProvider.recordExpandState(e.element, true);
+	});
+	const collapseListener = projectsTreeView.onDidCollapseElement((e) => {
+		projectsTreeProvider.recordExpandState(e.element, false);
+	});
+
 	// Register details webview provider
 	const detailsViewDisposable = vscode.window.registerWebviewViewProvider(
 		DetailsWebviewProvider.viewType,
@@ -126,6 +136,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		projectsTreeView,
 		visibilityListener,
+		expandListener,
+		collapseListener,
 		detailsViewDisposable,
 		...commandDisposables,
 		configChangeListener,
