@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { ProjectTreeItem } from '../providers/projects-tree-provider';
-import { RecentFolderTreeItem } from '../providers/base-tree-item';
+import { RecentFolderTreeItem, RecentRootTreeItem } from '../providers/base-tree-item';
 import { extractProjectPath, type ProjectItemArg } from '../utils/command-helpers';
 import type { CommandContext, CommandDisposable } from './types';
 
@@ -116,6 +116,30 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 		}
 	);
 
+	const removeFromRecentCommand = vscode.commands.registerCommand(
+		'projectory.removeFromRecent',
+		async (item: RecentFolderTreeItem) => {
+			ctx.historyService.removeFromHistory(item.folder.path);
+			await ctx.projectsTreeProvider.refresh();
+		}
+	);
+
+	const clearRecentFoldersCommand = vscode.commands.registerCommand(
+		'projectory.clearRecentFolders',
+		async (_item?: RecentRootTreeItem) => {
+			const confirmed = await vscode.window.showWarningMessage(
+				'Clear all recent folders?',
+				{ modal: true },
+				'Clear'
+			);
+			if (confirmed !== 'Clear') {
+				return;
+			}
+			ctx.historyService.clearHistory();
+			await ctx.projectsTreeProvider.refresh();
+		}
+	);
+
 	const renameProjectCommand = vscode.commands.registerCommand(
 		'projectory.renameProject',
 		async (item: ProjectTreeItem) => {
@@ -168,6 +192,8 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 		toggleSelectWorktreeCommand,
 		removeFromProjectsCommand,
 		saveToProjectsCommand,
+		removeFromRecentCommand,
+		clearRecentFoldersCommand,
 		renameProjectCommand,
 		editProjectDescriptionCommand
 	];
