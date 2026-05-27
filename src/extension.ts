@@ -65,8 +65,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Record current workspace in history
 	historyService.recordCurrentWorkspace();
 
-	// Always load projects on activation (needed for suggestions and other features)
-	await projectsTreeProvider.refresh();
+	// Load projects in the background. refresh() paints cached (saved) projects
+	// immediately and reconciles with a disk scan without blocking activation —
+	// so the panel shows known projects at once instead of a loading spinner.
+	void projectsTreeProvider.refresh().catch((err) => {
+		console.error('Error loading projects on activation:', err);
+	});
 
 	// Folder suggestions (delayed to avoid startup overhead, but after projects are loaded)
 	suggestionTimeoutId = setTimeout(async () => {

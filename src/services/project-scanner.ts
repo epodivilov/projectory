@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import type { Project, ProjectoryConfig } from '../types';
-import { getWorktrees } from './git-info-service';
+import { getWorktrees, hasLinkedWorktrees } from './git-info-service';
 
 /**
  * Scan for projects in root folder
@@ -82,16 +82,23 @@ function shouldExclude(name: string, patterns: string[]): boolean {
 
 async function createProjectWithWorktrees(uri: vscode.Uri): Promise<Project> {
 	const name = path.basename(uri.fsPath);
+
+	// Skip the expensive `git worktree list` subprocess unless this repo actually
+	// has linked worktrees (most don't). This is the dominant cost of a scan.
+	if (!hasLinkedWorktrees(uri.fsPath)) {
+		return { name, path: uri.fsPath, uri, isGitRepo: true, hasWorktrees: false };
+	}
+
 	const allWorktrees = await getWorktrees(uri.fsPath);
 	const linkedWorktrees = allWorktrees.filter((w) => !w.isMain);
-	const hasLinkedWorktrees = linkedWorktrees.length > 0;
+	const hasLinked = linkedWorktrees.length > 0;
 
 	return {
 		name,
 		path: uri.fsPath,
 		uri,
 		isGitRepo: true,
-		worktrees: hasLinkedWorktrees ? allWorktrees : undefined,
-		hasWorktrees: hasLinkedWorktrees
+		worktrees: hasLinked ? allWorktrees : undefined,
+		hasWorktrees: hasLinked
 	};
 }

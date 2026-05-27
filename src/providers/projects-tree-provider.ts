@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { Project, ProjectTag, RecentFolder } from "../types";
+import type { Project, ProjectTag, ProjectoryConfig, RecentFolder } from "../types";
 import {
   FolderTreeItem,
   ProjectsRootTreeItem,
@@ -112,6 +112,7 @@ export class ProjectsTreeProvider
   private _isInitialized = false;
   private _loadingPromise: Promise<void> | null = null;
   private _filterTagIds: string[] = [];
+  private _hasLoaded = false;
 
   constructor(
     private readonly historyService: WorkspaceHistoryService,
@@ -718,10 +719,25 @@ export class ProjectsTreeProvider
   }
 
   /**
-   * Load projects from scanner and saved projects
+   * Load projects from scanner and saved projects.
+   *
+   * Paints immediately from data already in memory (saved projects + recent
+   * folders, both from globalState), then reconciles with a full disk scan.
+   * This keeps the panel responsive on activation instead of blocking on the
+   * scan — see seedFromCache for the instant part.
    */
   private async loadProjects(): Promise<void> {
     const config = getConfig();
+
+    // 1. Cold start only: paint the user's known (saved) projects right away so
+    //    the panel isn't blank/spinning while the first scan runs. On later
+    //    refreshes the already-scanned list stays visible to avoid flicker.
+    if (!this._hasLoaded) {
+      this.seedFromCache(config);
+      this._onDidChangeTreeData.fire();
+    }
+
+    // 2. Reconcile with a full filesystem scan, then repaint.
     const scannedProjects = await scanProjects(config);
 
     const excludedPaths = this.savedProjectsService.getExcludedPaths();
@@ -752,6 +768,8 @@ export class ProjectsTreeProvider
     this.applyDisplayNames(this._projects);
     this.applyDisplayNames(this._recentFolders);
 
+    this._hasLoaded = true;
+
     // Initialize timestamps for new projects in background (non-blocking)
     initializeProjectTimestamps(this._projects, this.historyService)
       .then((count) => {
@@ -762,6 +780,27 @@ export class ProjectsTreeProvider
       .catch((err) => {
         console.error("Error initializing project timestamps:", err);
       });
+  }
+
+  /**
+   * Seed the in-memory list from data available synchronously (saved projects +
+   * recent folders in globalState) so the tree can paint before the disk scan
+   * finishes. Scanned-but-unsaved projects and worktree arrows fill in once the
+   * scan in loadProjects completes.
+   */
+  private seedFromCache(config: ProjectoryConfig): void {
+    this._projects = this.savedProjectsService.toProjects();
+
+    if (config.showRecentFolders) {
+      this._recentFolders = this.historyService.getRecentFolders(
+        this._projects
+      );
+    } else {
+      this._recentFolders = [];
+    }
+
+    this.applyDisplayNames(this._projects);
+    this.applyDisplayNames(this._recentFolders);
   }
 
   /**
