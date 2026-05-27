@@ -1,8 +1,12 @@
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { computeDisplayNames } from '../utils/path-utils';
 import { WorkspaceHistoryService } from '../services/workspace-history-service';
 import { TreeStateService } from '../services/tree-state-service';
+import { hasLinkedWorktrees } from '../services/git-info-service';
 
 /**
  * Minimal in-memory Memento for testing services that depend on globalState.
@@ -155,5 +159,32 @@ suite('TreeStateService', () => {
 		new TreeStateService(memento).setExpanded('recent-root', true);
 		// A fresh service over the same store simulates a new session.
 		assert.strictEqual(new TreeStateService(memento).isExpanded('recent-root'), true);
+	});
+});
+
+suite('hasLinkedWorktrees', () => {
+	let tmpDir: string;
+
+	setup(() => {
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'projectory-wt-'));
+	});
+
+	teardown(() => {
+		fs.rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	test('returns false when .git/worktrees is absent', () => {
+		fs.mkdirSync(path.join(tmpDir, '.git'));
+		assert.strictEqual(hasLinkedWorktrees(tmpDir), false);
+	});
+
+	test('returns false when .git/worktrees exists but is empty', () => {
+		fs.mkdirSync(path.join(tmpDir, '.git', 'worktrees'), { recursive: true });
+		assert.strictEqual(hasLinkedWorktrees(tmpDir), false);
+	});
+
+	test('returns true when .git/worktrees contains an entry', () => {
+		fs.mkdirSync(path.join(tmpDir, '.git', 'worktrees', 'feature-x'), { recursive: true });
+		assert.strictEqual(hasLinkedWorktrees(tmpDir), true);
 	});
 });
