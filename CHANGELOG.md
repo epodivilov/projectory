@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 
+## [0.2.0] - 2026-05-27
+
+### Added
+
+- Disambiguate project display names by parent path
+- Manage recent folders — remove individual entries and clear all
+- Persist tree view expand/collapse state
+
+
 ## [0.1.9] - 2026-05-24
 
 ### Fixed
