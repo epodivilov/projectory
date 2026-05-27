@@ -95,6 +95,48 @@ jobs:
       - name: Package extension
         run: pnpm exec vsce package --no-dependencies
 
+      # --- Publishing first: a release is only "marked" once the upload lands ---
+      # (auto-skips each target until the matching secret is set)
+      - name: Detect publish tokens
+        id: tokens
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          [ -n "$VSCE_PAT" ] && echo "vsce=true" >> "$GITHUB_OUTPUT" || true
+          [ -n "$OVSX_PAT" ] && echo "ovsx=true" >> "$GITHUB_OUTPUT" || true
+
+      - name: Publish to VS Code Marketplace
+        if: steps.tokens.outputs.vsce == 'true'
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm exec vsce publish --no-dependencies --packagePath "projectory-${{ steps.version.outputs.version }}.vsix"; then
+              exit 0
+            fi
+            echo "::warning::vsce publish attempt $attempt failed; retrying in 20s..."
+            sleep 20
+          done
+          echo "::error::vsce publish failed after 3 attempts"
+          exit 1
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Publish to Open VSX
+        if: steps.tokens.outputs.ovsx == 'true'
+        run: |
+          for attempt in 1 2 3; do
+            if npx --yes ovsx publish "projectory-${{ steps.version.outputs.version }}.vsix" -p "$OVSX_PAT"; then
+              exit 0
+            fi
+            echo "::warning::ovsx publish attempt $attempt failed; retrying in 20s..."
+            sleep 20
+          done
+          echo "::error::ovsx publish failed after 3 attempts"
+          exit 1
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+      # --- Mark the release only after a successful publish ---
       - name: Commit, tag and push
         run: |
           git add package.json CHANGELOG.md
@@ -109,25 +151,3 @@ jobs:
           name: v${{ steps.version.outputs.version }}
           body_path: RELEASE_NOTES.md
           files: projectory-${{ steps.version.outputs.version }}.vsix
-
-      # --- Publishing (auto-skips until the matching secret is set) ---
-      - name: Detect publish tokens
-        id: tokens
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: |
-          [ -n "$VSCE_PAT" ] && echo "vsce=true" >> "$GITHUB_OUTPUT" || true
-          [ -n "$OVSX_PAT" ] && echo "ovsx=true" >> "$GITHUB_OUTPUT" || true
-
-      - name: Publish to VS Code Marketplace
-        if: steps.tokens.outputs.vsce == 'true'
-        run: pnpm exec vsce publish --no-dependencies --packagePath "projectory-${{ steps.version.outputs.version }}.vsix"
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-
-      - name: Publish to Open VSX
-        if: steps.tokens.outputs.ovsx == 'true'
-        run: npx --yes ovsx publish "projectory-${{ steps.version.outputs.version }}.vsix" -p "$OVSX_PAT"
-        env:
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
