@@ -97,11 +97,21 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 	const removeFromProjectsCommand = vscode.commands.registerCommand(
 		'projectory.removeFromProjects',
 		async (item: ProjectTreeItem) => {
-			if (item.isSaved) {
-				ctx.savedProjectsService.removeSavedProject(item.project.path);
-			} else {
-				ctx.savedProjectsService.excludePath(item.project.path);
-			}
+			// Strip every marker (save record + tags + displayName + description).
+			// Without this a tagged-but-unsaved project would immediately reappear
+			// in Saved on the next render.
+			ctx.savedProjectsService.clearAllMarkers(item.project.path, ctx.metadataService);
+			await ctx.projectsTreeProvider.refresh();
+			ctx.setSelectedPath(null);
+			ctx.detailsWebviewProvider.clearProject();
+		}
+	);
+
+	const ignoreScannedCommand = vscode.commands.registerCommand(
+		'projectory.ignoreScanned',
+		async (item: ProjectTreeItem) => {
+			// Hide from future scans without touching markers (there are none).
+			ctx.savedProjectsService.excludePath(item.project.path);
 			await ctx.projectsTreeProvider.refresh();
 			ctx.setSelectedPath(null);
 			ctx.detailsWebviewProvider.clearProject();
@@ -120,6 +130,18 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 		'projectory.removeFromRecent',
 		async (item: RecentFolderTreeItem) => {
 			ctx.historyService.removeFromHistory(item.folder.path);
+			await ctx.projectsTreeProvider.refresh();
+		}
+	);
+
+	const clearAndIgnoreRecentCommand = vscode.commands.registerCommand(
+		'projectory.clearAndIgnoreRecent',
+		async (item: RecentFolderTreeItem) => {
+			// Drop from history AND from future scans — the user wants this path
+			// off the radar entirely. excludePath is a no-op if the folder isn't
+			// inside a scan root, which is harmless.
+			ctx.historyService.removeFromHistory(item.folder.path);
+			ctx.savedProjectsService.excludePath(item.folder.path);
 			await ctx.projectsTreeProvider.refresh();
 		}
 	);
@@ -191,8 +213,10 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 		toggleSelectRecentFolderCommand,
 		toggleSelectWorktreeCommand,
 		removeFromProjectsCommand,
+		ignoreScannedCommand,
 		saveToProjectsCommand,
 		removeFromRecentCommand,
+		clearAndIgnoreRecentCommand,
 		clearRecentFoldersCommand,
 		renameProjectCommand,
 		editProjectDescriptionCommand

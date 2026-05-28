@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import type { SavedProject, Project } from '../types';
 import { normalizePath } from '../utils/path-utils';
+import type { ProjectMetadataService } from './project-metadata-service';
 
 const SAVED_PROJECTS_KEY = 'savedProjects';
 const EXCLUDED_PATHS_KEY = 'excludedPaths';
@@ -41,6 +42,25 @@ export class SavedProjectsService {
 	isSaved(folderPath: string): boolean {
 		const normalized = normalizePath(folderPath);
 		return this.getSavedProjects().some((p) => normalizePath(p.path) === normalized);
+	}
+
+	/**
+	 * A project is "marked" if the user has expressed any intent to keep it —
+	 * either an explicit save record or any tag. displayName/description are not
+	 * checked separately because updateProject auto-saves before setting them.
+	 */
+	isMarked(folderPath: string, metadataService: ProjectMetadataService): boolean {
+		return this.isSaved(folderPath) || metadataService.getTags(folderPath).length > 0;
+	}
+
+	/**
+	 * Strip every marker from a path so it leaves the Saved section entirely.
+	 * Without clearing tags, a tagged-but-unsaved item would immediately reappear
+	 * as marked on the next render.
+	 */
+	clearAllMarkers(folderPath: string, metadataService: ProjectMetadataService): void {
+		this.removeSavedProject(folderPath);
+		metadataService.setTags(folderPath, []);
 	}
 
 	updateProject(folderPath: string, updates: { displayName?: string; description?: string }): void {

@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 
+## [Unreleased]
+
+### Changed
+
+- Split projects tree into honest Saved and Scanned sections. Saved = projects you've explicitly marked (saved record or tag); Scanned = discovered by scan but unmarked. Tag groupings now apply inside Saved only.
+- "Remove from Saved" now clears every marker (save record, tags, display name, description) so a project actually leaves Saved instead of bouncing back via a leftover tag.
+
+### Added
+
+- "Ignore" command on Scanned items (hides from future scans).
+- "Clear & Ignore" command on Recent folders (removes from history and excludes from future scans in one step).
+
+### Fixed
+
+- Suggestion prompt no longer offers to save folders you've already tagged outside the scan roots.
+
+
 ## [0.2.1] - 2026-05-28
 
 ### Changed

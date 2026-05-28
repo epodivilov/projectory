@@ -96,6 +96,14 @@ export class ProjectMetadataService {
 	}
 
 	/**
+	 * Get every path that has at least one tag. Useful for derived membership
+	 * checks (e.g. "this path is marked because it carries a tag").
+	 */
+	getTaggedPaths(): string[] {
+		return Object.keys(this.getAll());
+	}
+
+	/**
 	 * Get projects that have no tags
 	 */
 	getUntaggedProjects(allProjectPaths: string[]): string[] {

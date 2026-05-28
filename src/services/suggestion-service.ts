@@ -8,6 +8,7 @@ import type {
   WorkspaceHistoryEntry,
 } from "./workspace-history-service";
 import type { SavedProjectsService } from "./saved-projects-service";
+import type { ProjectMetadataService } from "./project-metadata-service";
 import { isWorktreePath } from "./git-info-service";
 import { normalizePath, createNormalizedPathSet, normalizedSetHas } from "../utils/path-utils";
 
@@ -25,6 +26,7 @@ export class SuggestionService {
     private readonly globalState: vscode.Memento,
     private readonly historyService: WorkspaceHistoryService,
     private readonly savedProjectsService: SavedProjectsService,
+    private readonly metadataService: ProjectMetadataService,
     private readonly getProjectPaths?: () => string[]
   ) {}
 
@@ -129,11 +131,16 @@ export class SuggestionService {
     );
     const savedProjects = this.savedProjectsService.getSavedProjects();
 
-    // Get all known project paths (saved + scanned) with normalized paths
+    // Get all known project paths: saved + scanned + tagged-out-of-tree.
+    // The metadata key list catches paths the user has tagged that aren't in
+    // the current scan roots — under the "tag = marked" model they should be
+    // treated as known and never re-suggested.
     const scannedPaths = this.getProjectPaths?.() ?? [];
+    const taggedPaths = this.metadataService.getTaggedPaths();
     const allKnownPaths = createNormalizedPathSet([
       ...savedProjects.map((p) => p.path),
       ...scannedPaths,
+      ...taggedPaths,
     ]);
 
     // Get frequent folders from history service
@@ -207,8 +214,9 @@ export class SuggestionService {
       return;
     }
 
-    // Re-check if project is already known (saved or scanned) before showing
-    if (this.savedProjectsService.isSaved(entry.path)) {
+    // Re-check known-ness — covers race where state changed since the entry
+    // was added to the suggestible list (e.g. user just tagged it).
+    if (this.savedProjectsService.isMarked(entry.path, this.metadataService)) {
       return;
     }
     const scannedPathSet = createNormalizedPathSet(this.getProjectPaths?.() ?? []);

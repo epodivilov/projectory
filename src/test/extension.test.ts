@@ -8,6 +8,8 @@ import { WorkspaceHistoryService } from '../services/workspace-history-service';
 import { TreeStateService } from '../services/tree-state-service';
 import { hasLinkedWorktrees } from '../services/git-info-service';
 import { ProjectsCacheService, type CachedProject } from '../services/projects-cache-service';
+import { SavedProjectsService } from '../services/saved-projects-service';
+import { ProjectMetadataService } from '../services/project-metadata-service';
 
 /**
  * Minimal in-memory Memento for testing services that depend on globalState.
@@ -230,5 +232,88 @@ suite('ProjectsCacheService', () => {
 		await new ProjectsCacheService(memento).save(sample);
 		// Simulates a new session sharing the same globalState.
 		assert.deepStrictEqual(new ProjectsCacheService(memento).get(), sample);
+	});
+});
+
+suite('SavedProjectsService marker logic', () => {
+	// SavedProjectsService.getSavedProjects() filters by fs.existsSync, so the
+	// marker logic only sees paths that exist on disk. We create real tmpdirs
+	// per suite and tear them down after.
+	let dirA: string;
+	let dirB: string;
+
+	setup(() => {
+		dirA = fs.mkdtempSync(path.join(os.tmpdir(), 'projectory-marker-a-'));
+		dirB = fs.mkdtempSync(path.join(os.tmpdir(), 'projectory-marker-b-'));
+	});
+
+	teardown(() => {
+		fs.rmSync(dirA, { recursive: true, force: true });
+		fs.rmSync(dirB, { recursive: true, force: true });
+	});
+
+	function makeServices() {
+		const memento = createMemento();
+		const saved = new SavedProjectsService(memento);
+		const metadata = new ProjectMetadataService(memento);
+		return { saved, metadata };
+	}
+
+	test('isMarked returns false for an unknown path', () => {
+		const { saved, metadata } = makeServices();
+		assert.strictEqual(saved.isMarked(dirA, metadata), false);
+	});
+
+	test('isMarked is true when only saved', () => {
+		const { saved, metadata } = makeServices();
+		saved.saveProject(dirA);
+		assert.strictEqual(saved.isMarked(dirA, metadata), true);
+	});
+
+	test('isMarked is true when only tagged (no save record)', () => {
+		const { saved, metadata } = makeServices();
+		metadata.addTag(dirA, 'work');
+		assert.strictEqual(saved.isMarked(dirA, metadata), true);
+		// Sanity: tagging does NOT autosave — keeps Saved-vs-tagged distinction clean.
+		assert.strictEqual(saved.isSaved(dirA), false);
+	});
+
+	test('isMarked is true when displayName set (autosaves via updateProject)', () => {
+		const { saved, metadata } = makeServices();
+		saved.updateProject(dirA, { displayName: 'Alpha' });
+		assert.strictEqual(saved.isMarked(dirA, metadata), true);
+	});
+
+	test('isMarked is true when description set (autosaves via updateProject)', () => {
+		const { saved, metadata } = makeServices();
+		saved.updateProject(dirA, { description: 'main work repo' });
+		assert.strictEqual(saved.isMarked(dirA, metadata), true);
+	});
+
+	test('clearAllMarkers strips save record, tags, displayName and description', () => {
+		const { saved, metadata } = makeServices();
+		saved.updateProject(dirA, { displayName: 'Alpha', description: 'main repo' });
+		metadata.addTag(dirA, 'work');
+		assert.strictEqual(saved.isMarked(dirA, metadata), true);
+
+		saved.clearAllMarkers(dirA, metadata);
+
+		assert.strictEqual(saved.isMarked(dirA, metadata), false);
+		assert.strictEqual(saved.isSaved(dirA), false);
+		assert.deepStrictEqual(metadata.getTags(dirA), []);
+		assert.strictEqual(saved.getDisplayName(dirA), undefined);
+		assert.strictEqual(saved.getDescription(dirA), undefined);
+	});
+
+	test('clearAllMarkers leaves other paths untouched', () => {
+		const { saved, metadata } = makeServices();
+		saved.saveProject(dirA);
+		saved.saveProject(dirB);
+		metadata.addTag(dirB, 'work');
+
+		saved.clearAllMarkers(dirA, metadata);
+
+		assert.strictEqual(saved.isMarked(dirA, metadata), false);
+		assert.strictEqual(saved.isMarked(dirB, metadata), true);
 	});
 });

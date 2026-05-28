@@ -108,10 +108,35 @@ export class ProjectsRootTreeItem extends vscode.TreeItem {
     this.tooltip = new vscode.MarkdownString();
     this.tooltip.appendMarkdown("**Saved Projects**\n\n");
     this.tooltip.appendMarkdown(
-      `${projectCount} project${projectCount !== 1 ? "s" : ""}`
+      `${projectCount} project${projectCount !== 1 ? "s" : ""} you've explicitly saved or tagged`
     );
+    this.tooltip.appendMarkdown("\n\n*Drag a Scanned project here to save it*");
 
     this.iconPath = new vscode.ThemeIcon("folder-library");
+  }
+}
+
+/**
+ * Root container tree item for scanned-but-unmarked projects.
+ * Collapsed by default — these are discovered automatically and the user
+ * hasn't expressed intent to keep them yet.
+ */
+export class ScannedRootTreeItem extends vscode.TreeItem {
+  constructor(projectCount: number) {
+    super("Scanned", vscode.TreeItemCollapsibleState.Collapsed);
+
+    this.id = "scanned-root";
+    this.contextValue = "scannedRoot";
+    this.description = `${projectCount}`;
+
+    this.tooltip = new vscode.MarkdownString();
+    this.tooltip.appendMarkdown("**Scanned Projects**\n\n");
+    this.tooltip.appendMarkdown(
+      `${projectCount} project${projectCount !== 1 ? "s" : ""} found by scanning the root folder`
+    );
+    this.tooltip.appendMarkdown("\n\n*Tag or rename one to move it to Saved*");
+
+    this.iconPath = new vscode.ThemeIcon("search");
   }
 }
 
