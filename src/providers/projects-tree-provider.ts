@@ -5,6 +5,7 @@ import {
   ProjectsRootTreeItem,
   RecentFolderTreeItem,
   RecentRootTreeItem,
+  ScannedRootTreeItem,
   TagTreeItem,
   UntaggedTreeItem,
   WorktreeTreeItem,
@@ -27,6 +28,7 @@ const DRAG_MIME_TYPE = "application/vnd.code.tree.projectoryprojects";
  */
 export type ProjectsTreeElement =
   | ProjectsRootTreeItem
+  | ScannedRootTreeItem
   | RecentRootTreeItem
   | RecentFolderTreeItem
   | ProjectTreeItem
@@ -177,9 +179,18 @@ export class ProjectsTreeProvider
         return [];
       }
 
+      const saved = this.getSavedSubset();
+      const scanned = this.getScannedSubset();
+
       const items: ProjectsTreeElement[] = [
-        new ProjectsRootTreeItem(this._projects.length),
+        new ProjectsRootTreeItem(saved.length),
       ];
+
+      // Add Scanned section if there are unmarked discovered projects.
+      // Hidden when empty to avoid noise once the user has marked everything.
+      if (scanned.length > 0) {
+        items.push(new ScannedRootTreeItem(scanned.length));
+      }
 
       // Add Recent section if there are recent folders
       if (config.showRecentFolders && this._recentFolders.length > 0) {
@@ -192,6 +203,12 @@ export class ProjectsTreeProvider
     // Children of Recent root - return recent folders
     if (element instanceof RecentRootTreeItem) {
       return this.getRecentFoldersList();
+    }
+
+    // Children of Scanned root - flat list, no tag grouping (scanned items are
+    // unmarked by definition, so tag groups would always be empty)
+    if (element instanceof ScannedRootTreeItem) {
+      return this.getScannedList();
     }
 
     // Children of Projects root - return based on view mode
@@ -254,13 +271,13 @@ export class ProjectsTreeProvider
   }
 
   /**
-   * Get flat list of projects (default view)
+   * Get flat list of projects (default view) — Saved subset only.
    */
   private getFlatList(): ProjectsTreeElement[] {
     const config = getConfig();
     const currentPath = this.getCurrentWorkspacePath();
     const sorted = this.historyService.sortProjects(
-      this._projects,
+      this.getSavedSubset(),
       config.sortOrder,
       config.sortDirection
     );
@@ -271,13 +288,51 @@ export class ProjectsTreeProvider
   }
 
   /**
+   * Get flat sorted list of scanned-but-unmarked projects.
+   */
+  private getScannedList(): ProjectsTreeElement[] {
+    const config = getConfig();
+    const currentPath = this.getCurrentWorkspacePath();
+    const sorted = this.historyService.sortProjects(
+      this.getScannedSubset(),
+      config.sortOrder,
+      config.sortDirection
+    );
+
+    // Hide tags column — scanned items definitionally carry no tags.
+    return sorted.map((project) =>
+      this.createProjectTreeItem(project, currentPath, false)
+    );
+  }
+
+  /**
+   * Saved subset = projects the user has marked (saved record or tags).
+   */
+  private getSavedSubset(): Project[] {
+    return this._projects.filter((p) =>
+      this.savedProjectsService.isMarked(p.path, this.metadataService)
+    );
+  }
+
+  /**
+   * Scanned subset = projects with no markers — found by disk scan only.
+   */
+  private getScannedSubset(): Project[] {
+    return this._projects.filter(
+      (p) => !this.savedProjectsService.isMarked(p.path, this.metadataService)
+    );
+  }
+
+  /**
    * Get root elements for tag hierarchy view (priority 0 tags)
    */
   private getTagHierarchyRoot(): ProjectsTreeElement[] {
     const items: ProjectsTreeElement[] = [];
     const config = getConfig();
-    const allPaths = this._projects.map((p) => p.path);
-    const untaggedPaths = this.metadataService.getUntaggedProjects(allPaths);
+    // Tag grouping operates over the Saved subset only — scanned items live in
+    // their own root and are unmarked by definition.
+    const savedPaths = this.getSavedSubset().map((p) => p.path);
+    const untaggedPaths = this.metadataService.getUntaggedProjects(savedPaths);
 
     // If filter is active, show hierarchy leading to filtered tags
     if (this._filterTagIds.length > 0) {
@@ -501,8 +556,9 @@ export class ProjectsTreeProvider
   private getUntaggedProjects(): ProjectsTreeElement[] {
     const config = getConfig();
     const currentPath = this.getCurrentWorkspacePath();
-    const allPaths = this._projects.map((p) => p.path);
-    const untaggedPaths = this.metadataService.getUntaggedProjects(allPaths);
+    // Restrict to Saved subset — scanned items are excluded from the Saved tree.
+    const savedPaths = this.getSavedSubset().map((p) => p.path);
+    const untaggedPaths = this.metadataService.getUntaggedProjects(savedPaths);
 
     const untaggedProjects = untaggedPaths
       .map((path) => this.findProjectByPath(path))
@@ -583,34 +639,33 @@ export class ProjectsTreeProvider
       isFromRecent: boolean[];
     };
 
-    // Save recent folders as projects when dropped on Saved or tags
-    const saveRecentAsProjects = (targetTagIds?: string[]) => {
-      for (let i = 0; i < paths.length; i++) {
-        const path = paths[i];
-        if (isFromRecent[i]) {
-          // Save as project
-          this.savedProjectsService.saveProject(path);
-        }
-        // Add tags if specified
-        if (targetTagIds) {
+    // Mark dropped items so they end up in the Saved section. Tag drops imply
+    // marked-ness via the tag; root/Untagged drops need an explicit save record
+    // because dragging a Scanned item onto Saved must persist user intent.
+    const markDropped = (targetTagIds?: string[]) => {
+      for (const path of paths) {
+        if (targetTagIds && targetTagIds.length > 0) {
           for (const tagId of targetTagIds) {
             this.metadataService.addTag(path, tagId);
           }
+        } else {
+          // No tag → mark via explicit save so the item lands in Saved.
+          this.savedProjectsService.saveProject(path);
         }
       }
     };
 
     if (target instanceof ProjectsRootTreeItem) {
-      // Drop on Saved root - save recent folders as projects (no tags)
-      saveRecentAsProjects();
+      // Drop on Saved root - save (no tags)
+      markDropped();
       await this.refresh();
     } else if (target instanceof TagTreeItem) {
-      // Drop on tag - save and add tags
-      saveRecentAsProjects(target.tagPath);
+      // Drop on tag - add tags (tag itself marks the project as Saved)
+      markDropped(target.tagPath);
       await this.refresh();
     } else if (target instanceof UntaggedTreeItem) {
-      // Drop on Untagged - save and remove all tags
-      saveRecentAsProjects();
+      // Drop on Untagged - save and strip any existing tags
+      markDropped();
       for (const path of paths) {
         this.metadataService.setTags(path, []);
       }
@@ -682,23 +737,23 @@ export class ProjectsTreeProvider
   }
 
   /**
-   * Get projects that have ALL specified tags
+   * Get Saved-subset projects that have ALL specified tags
    */
   private getProjectsWithAllTags(tagIds: string[]): Project[] {
-    return this._projects.filter((project) => {
+    return this.getSavedSubset().filter((project) => {
       const projectTags = this.metadataService.getTags(project.path);
       return tagIds.every((tagId) => projectTags.includes(tagId));
     });
   }
 
   /**
-   * Get count of projects that match the tagPath AND at least one filter tag
+   * Get count of Saved-subset projects that match the tagPath AND at least one filter tag
    */
   private getFilteredProjectCountUnderTag(
     tagPath: string[],
     filterTagIds: string[]
   ): number {
-    return this._projects.filter((project) => {
+    return this.getSavedSubset().filter((project) => {
       const projectTags = this.metadataService.getTags(project.path);
       // Must have all tags in tagPath
       const hasPathTags = tagPath.every((tagId) => projectTags.includes(tagId));

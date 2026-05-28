@@ -128,6 +128,12 @@
         "icon": "$(trash)"
       },
       {
+        "command": "projectory.ignoreScanned",
+        "title": "Ignore",
+        "category": "Projectory",
+        "icon": "$(eye-closed)"
+      },
+      {
         "command": "projectory.saveToProjects",
         "title": "Save",
         "category": "Projectory",
@@ -138,6 +144,11 @@
         "title": "Remove from Recent",
         "category": "Projectory",
         "icon": "$(trash)"
+      },
+      {
+        "command": "projectory.clearAndIgnoreRecent",
+        "title": "Clear & Ignore",
+        "category": "Projectory"
       },
       {
         "command": "projectory.clearRecentFolders",
@@ -341,7 +352,12 @@
         },
         {
           "command": "projectory.removeFromProjects",
-          "when": "view == projectory.projectsView && viewItem =~ /savedProject|scannedProject/",
+          "when": "view == projectory.projectsView && viewItem == savedProject",
+          "group": "modification@1"
+        },
+        {
+          "command": "projectory.ignoreScanned",
+          "when": "view == projectory.projectsView && viewItem == scannedProject",
           "group": "modification@1"
         },
         {
@@ -395,6 +411,11 @@
           "command": "projectory.removeFromRecent",
           "when": "view == projectory.projectsView && viewItem == recentFolder",
           "group": "modification@2"
+        },
+        {
+          "command": "projectory.clearAndIgnoreRecent",
+          "when": "view == projectory.projectsView && viewItem == recentFolder",
+          "group": "modification@3"
         },
         {
           "command": "projectory.clearRecentFolders",

@@ -41,6 +41,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		context.globalState,
 		historyService,
 		savedProjectsService,
+		metadataService,
 		() => {
 			const projects = projectsTreeProvider.getProjects();
 			const paths: string[] = [];
