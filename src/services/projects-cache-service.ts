@@ -23,7 +23,10 @@ export class ProjectsCacheService {
 	constructor(private readonly globalState: vscode.Memento) {}
 
 	get(): CachedProject[] {
-		return this.globalState.get<CachedProject[]>(CACHE_KEY, []);
+		// `??` rather than the second arg to `.get`: vscode's real Memento returns
+		// `undefined` (not the default) for keys that were explicitly cleared via
+		// `update(key, undefined)`.
+		return this.globalState.get<CachedProject[]>(CACHE_KEY) ?? [];
 	}
 
 	async save(projects: CachedProject[]): Promise<void> {
