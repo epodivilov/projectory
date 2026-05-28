@@ -7,6 +7,7 @@ import { computeDisplayNames } from '../utils/path-utils';
 import { WorkspaceHistoryService } from '../services/workspace-history-service';
 import { TreeStateService } from '../services/tree-state-service';
 import { hasLinkedWorktrees } from '../services/git-info-service';
+import { ProjectsCacheService, type CachedProject } from '../services/projects-cache-service';
 
 /**
  * Minimal in-memory Memento for testing services that depend on globalState.
@@ -186,5 +187,48 @@ suite('hasLinkedWorktrees', () => {
 	test('returns true when .git/worktrees contains an entry', () => {
 		fs.mkdirSync(path.join(tmpDir, '.git', 'worktrees', 'feature-x'), { recursive: true });
 		assert.strictEqual(hasLinkedWorktrees(tmpDir), true);
+	});
+});
+
+suite('ProjectsCacheService', () => {
+	const sample: CachedProject[] = [
+		{ path: '/code/alpha', name: 'alpha', isGitRepo: true, hasWorktrees: false },
+		{ path: '/code/beta', name: 'beta', isGitRepo: true, hasWorktrees: true }
+	];
+
+	test('returns an empty array when the cache is untouched', () => {
+		const service = new ProjectsCacheService(createMemento());
+		assert.deepStrictEqual(service.get(), []);
+	});
+
+	test('round-trips a saved list', async () => {
+		const service = new ProjectsCacheService(createMemento());
+		await service.save(sample);
+		assert.deepStrictEqual(service.get(), sample);
+	});
+
+	test('overwrites a previously cached list', async () => {
+		const service = new ProjectsCacheService(createMemento());
+		await service.save(sample);
+
+		const next: CachedProject[] = [
+			{ path: '/code/gamma', name: 'gamma', isGitRepo: false, hasWorktrees: false }
+		];
+		await service.save(next);
+		assert.deepStrictEqual(service.get(), next);
+	});
+
+	test('clear() empties the cache', async () => {
+		const service = new ProjectsCacheService(createMemento());
+		await service.save(sample);
+		await service.clear();
+		assert.deepStrictEqual(service.get(), []);
+	});
+
+	test('survives a fresh service over the same memento', async () => {
+		const memento = createMemento();
+		await new ProjectsCacheService(memento).save(sample);
+		// Simulates a new session sharing the same globalState.
+		assert.deepStrictEqual(new ProjectsCacheService(memento).get(), sample);
 	});
 });

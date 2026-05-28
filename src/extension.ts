@@ -6,6 +6,7 @@ import { SavedProjectsService } from './services/saved-projects-service';
 import { TagService } from './services/tag-service';
 import { ProjectMetadataService } from './services/project-metadata-service';
 import { TreeStateService } from './services/tree-state-service';
+import { ProjectsCacheService } from './services/projects-cache-service';
 import { getSuggestionConfig, onConfigChange } from './services/configuration-service';
 import { SuggestionService } from './services/suggestion-service';
 import { registerAllCommands, initializeViewContext, updateViewContextOnConfigChange, type CommandContext } from './commands';
@@ -33,8 +34,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	tagService = new TagService();
 	metadataService = new ProjectMetadataService(context.globalState);
 	const treeStateService = new TreeStateService(context.globalState);
+	const projectsCacheService = new ProjectsCacheService(context.globalState);
 	detailsWebviewProvider = new DetailsWebviewProvider(context.extensionUri, historyService, savedProjectsService);
-	projectsTreeProvider = new ProjectsTreeProvider(historyService, savedProjectsService, tagService, metadataService, treeStateService);
+	projectsTreeProvider = new ProjectsTreeProvider(historyService, savedProjectsService, tagService, metadataService, treeStateService, projectsCacheService);
 	suggestionService = new SuggestionService(
 		context.globalState,
 		historyService,

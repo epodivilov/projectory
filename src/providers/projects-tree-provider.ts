@@ -14,6 +14,7 @@ import { SavedProjectsService } from "../services/saved-projects-service";
 import { TagService } from "../services/tag-service";
 import { ProjectMetadataService } from "../services/project-metadata-service";
 import { TreeStateService } from "../services/tree-state-service";
+import { ProjectsCacheService } from "../services/projects-cache-service";
 import { scanProjects } from "../services/project-scanner";
 import { initializeProjectTimestamps } from "../services/git-info-service";
 import { getConfig } from "../services/configuration-service";
@@ -119,7 +120,8 @@ export class ProjectsTreeProvider
     private readonly savedProjectsService: SavedProjectsService,
     private readonly tagService: TagService,
     private readonly metadataService: ProjectMetadataService,
-    private readonly treeStateService: TreeStateService
+    private readonly treeStateService: TreeStateService,
+    private readonly projectsCacheService: ProjectsCacheService
   ) {
     this._projects = [];
     this._isInitialized = true;
@@ -752,6 +754,18 @@ export class ProjectsTreeProvider
 
     this._projects = [...filteredScanned, ...uniqueSaved];
 
+    // Persist the scan result so the next cold start can paint the full tree
+    // from globalState instead of waiting for another scan. Fire-and-forget —
+    // the write is asynchronous and must not block the repaint below.
+    void this.projectsCacheService.save(
+      this._projects.map((p) => ({
+        path: p.path,
+        name: p.name,
+        isGitRepo: p.isGitRepo ?? false,
+        hasWorktrees: p.hasWorktrees ?? false,
+      }))
+    );
+
     // Load recent folders before renaming projects: getRecentFolders relies on
     // the raw folder-name (basename) of projects for its .worktrees heuristic.
     if (config.showRecentFolders) {
@@ -783,13 +797,31 @@ export class ProjectsTreeProvider
   }
 
   /**
-   * Seed the in-memory list from data available synchronously (saved projects +
-   * recent folders in globalState) so the tree can paint before the disk scan
-   * finishes. Scanned-but-unsaved projects and worktree arrows fill in once the
-   * scan in loadProjects completes.
+   * Seed the in-memory list from data available synchronously so the tree can
+   * paint before the disk scan finishes. Prefers the persisted last-scan cache
+   * (full project list with group/tag info filled in from sync services) and
+   * falls back to the explicitly-saved list on the very first run when no
+   * cache exists yet.
    */
   private seedFromCache(config: ProjectoryConfig): void {
-    this._projects = this.savedProjectsService.toProjects();
+    const cached = this.projectsCacheService.get();
+
+    if (cached.length > 0) {
+      // Hydrate cached entries into Project shape. `uri` is rebuilt from
+      // `path`; `worktrees` stays undefined and is filled by the background
+      // scan in loadProjects.
+      this._projects = cached.map((c) => ({
+        name: c.name,
+        path: c.path,
+        uri: vscode.Uri.file(c.path),
+        isGitRepo: c.isGitRepo,
+        hasWorktrees: c.hasWorktrees,
+      }));
+    } else {
+      // First run after install: no cache yet. Fall back to whatever the user
+      // has explicitly saved so the panel isn't completely empty.
+      this._projects = this.savedProjectsService.toProjects();
+    }
 
     if (config.showRecentFolders) {
       this._recentFolders = this.historyService.getRecentFolders(
