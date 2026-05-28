@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 
+## [0.2.2] - 2026-05-28
+
+### Changed
+
+- Cache last scan result for instant panel paint
+- Split Saved/Scanned with derived marker state
+
+
 ## [Unreleased]
 
 ### Changed
