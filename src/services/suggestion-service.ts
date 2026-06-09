@@ -11,6 +11,7 @@ import type { SavedProjectsService } from "./saved-projects-service";
 import type { ProjectMetadataService } from "./project-metadata-service";
 import { isWorktreePath } from "./git-info-service";
 import { normalizePath, createNormalizedPathSet, normalizedSetHas } from "../utils/path-utils";
+import type { StateStore } from "../core/state-store";
 
 const IGNORED_SUGGESTIONS_KEY = "ignoredSuggestionPaths";
 const POSTPONED_SUGGESTIONS_KEY = "postponedSuggestions";
@@ -23,7 +24,7 @@ export class SuggestionService {
   private shownThisSession = new Set<string>();
 
   constructor(
-    private readonly globalState: vscode.Memento,
+    private readonly state: StateStore,
     private readonly historyService: WorkspaceHistoryService,
     private readonly savedProjectsService: SavedProjectsService,
     private readonly metadataService: ProjectMetadataService,
@@ -34,7 +35,7 @@ export class SuggestionService {
    * Get permanently ignored paths
    */
   getIgnoredPaths(): string[] {
-    return this.globalState.get<string[]>(IGNORED_SUGGESTIONS_KEY, []);
+    return this.state.get(IGNORED_SUGGESTIONS_KEY, []);
   }
 
   /**
@@ -44,7 +45,7 @@ export class SuggestionService {
     const ignored = this.getIgnoredPaths();
     if (!ignored.includes(folderPath)) {
       ignored.push(folderPath);
-      this.globalState.update(IGNORED_SUGGESTIONS_KEY, ignored);
+      this.state.update(IGNORED_SUGGESTIONS_KEY, ignored);
     }
   }
 
@@ -54,17 +55,14 @@ export class SuggestionService {
   unignorePath(folderPath: string): void {
     const ignored = this.getIgnoredPaths();
     const filtered = ignored.filter((p) => p !== folderPath);
-    this.globalState.update(IGNORED_SUGGESTIONS_KEY, filtered);
+    this.state.update(IGNORED_SUGGESTIONS_KEY, filtered);
   }
 
   /**
    * Get postponed suggestions
    */
   getPostponedSuggestions(): PostponedSuggestion[] {
-    return this.globalState.get<PostponedSuggestion[]>(
-      POSTPONED_SUGGESTIONS_KEY,
-      []
-    );
+    return this.state.get(POSTPONED_SUGGESTIONS_KEY, []);
   }
 
   /**
@@ -78,7 +76,7 @@ export class SuggestionService {
       path: folderPath,
       postponedAt: Date.now(),
     });
-    this.globalState.update(POSTPONED_SUGGESTIONS_KEY, filtered);
+    this.state.update(POSTPONED_SUGGESTIONS_KEY, filtered);
   }
 
   /**
@@ -87,7 +85,7 @@ export class SuggestionService {
   unpostponePath(folderPath: string): void {
     const postponed = this.getPostponedSuggestions();
     const filtered = postponed.filter((p) => p.path !== folderPath);
-    this.globalState.update(POSTPONED_SUGGESTIONS_KEY, filtered);
+    this.state.update(POSTPONED_SUGGESTIONS_KEY, filtered);
   }
 
   /**
@@ -106,7 +104,7 @@ export class SuggestionService {
     const postponed = this.getPostponedSuggestions();
     const stillValid = postponed.filter((p) => !this.isPostponeExpired(p));
     if (stillValid.length !== postponed.length) {
-      this.globalState.update(POSTPONED_SUGGESTIONS_KEY, stillValid);
+      this.state.update(POSTPONED_SUGGESTIONS_KEY, stillValid);
     }
   }
 
@@ -257,8 +255,8 @@ export class SuggestionService {
    * Reset all suggestion data
    */
   resetAll(): void {
-    this.globalState.update(IGNORED_SUGGESTIONS_KEY, []);
-    this.globalState.update(POSTPONED_SUGGESTIONS_KEY, []);
+    this.state.update(IGNORED_SUGGESTIONS_KEY, []);
+    this.state.update(POSTPONED_SUGGESTIONS_KEY, []);
     this.shownThisSession.clear();
   }
 }

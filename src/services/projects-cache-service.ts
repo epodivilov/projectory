@@ -1,4 +1,4 @@
-import * as vscode from 'vscode';
+import type { StateStore } from '../core/state-store';
 
 const CACHE_KEY = 'projectory.scannedProjectsCache';
 
@@ -20,20 +20,20 @@ export interface CachedProject {
  * for a fresh disk scan.
  */
 export class ProjectsCacheService {
-	constructor(private readonly globalState: vscode.Memento) {}
+	constructor(private readonly state: StateStore) {}
 
 	get(): CachedProject[] {
 		// `??` rather than the second arg to `.get`: vscode's real Memento returns
 		// `undefined` (not the default) for keys that were explicitly cleared via
 		// `update(key, undefined)`.
-		return this.globalState.get<CachedProject[]>(CACHE_KEY) ?? [];
+		return this.state.get(CACHE_KEY) ?? [];
 	}
 
 	async save(projects: CachedProject[]): Promise<void> {
-		await this.globalState.update(CACHE_KEY, projects);
+		this.state.update(CACHE_KEY, projects);
 	}
 
 	async clear(): Promise<void> {
-		await this.globalState.update(CACHE_KEY, undefined);
+		this.state.update(CACHE_KEY, undefined);
 	}
 }

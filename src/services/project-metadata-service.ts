@@ -1,5 +1,5 @@
-import * as vscode from 'vscode';
 import type { ProjectMetadata } from '../types';
+import type { StateStore } from '../core/state-store';
 
 const METADATA_KEY = 'projectMetadata';
 
@@ -10,20 +10,20 @@ type MetadataStorage = Record<string, ProjectMetadata>;
  * Tags are now identified by name (not UUID)
  */
 export class ProjectMetadataService {
-	constructor(private readonly globalState: vscode.Memento) {}
+	constructor(private readonly state: StateStore) {}
 
 	/**
 	 * Get all metadata
 	 */
 	private getAll(): MetadataStorage {
-		return this.globalState.get<MetadataStorage>(METADATA_KEY, {});
+		return this.state.get(METADATA_KEY, {});
 	}
 
 	/**
 	 * Save all metadata
 	 */
 	private saveAll(data: MetadataStorage): void {
-		this.globalState.update(METADATA_KEY, data);
+		this.state.update(METADATA_KEY, data);
 	}
 
 	/**
@@ -183,6 +183,6 @@ export class ProjectMetadataService {
 	 * Reset all metadata (clear everything)
 	 */
 	resetAll(): void {
-		this.globalState.update(METADATA_KEY, {});
+		this.state.update(METADATA_KEY, {});
 	}
 }

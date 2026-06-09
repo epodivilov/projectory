@@ -1,4 +1,4 @@
-import * as vscode from 'vscode';
+import type { StateStore } from '../core/state-store';
 
 const TREE_EXPAND_STATE_KEY = 'treeExpandState';
 
@@ -11,7 +11,7 @@ const TREE_EXPAND_STATE_KEY = 'treeExpandState';
  * opens sensibly on first run and adapts as projects come and go.
  */
 export class TreeStateService {
-	constructor(private readonly globalState: vscode.Memento) {}
+	constructor(private readonly state: StateStore) {}
 
 	/**
 	 * Get the stored expand state for a node id.
@@ -29,10 +29,10 @@ export class TreeStateService {
 	setExpanded(id: string, expanded: boolean): void {
 		const stored = this.getStored();
 		stored[id] = expanded;
-		this.globalState.update(TREE_EXPAND_STATE_KEY, stored);
+		this.state.update(TREE_EXPAND_STATE_KEY, stored);
 	}
 
 	private getStored(): Record<string, boolean> {
-		return this.globalState.get<Record<string, boolean>>(TREE_EXPAND_STATE_KEY, {});
+		return this.state.get(TREE_EXPAND_STATE_KEY, {});
 	}
 }

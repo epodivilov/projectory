@@ -3,6 +3,7 @@ import * as path from 'path';
 import type { SavedProject, Project } from '../types';
 import { normalizePath } from '../utils/path-utils';
 import type { ProjectMetadataService } from './project-metadata-service';
+import type { StateStore } from '../core/state-store';
 
 const SAVED_PROJECTS_KEY = 'savedProjects';
 const EXCLUDED_PATHS_KEY = 'excludedPaths';
@@ -11,10 +12,10 @@ const EXCLUDED_PATHS_KEY = 'excludedPaths';
  * Service for managing manually saved projects and excluded paths
  */
 export class SavedProjectsService {
-	constructor(private readonly globalState: vscode.Memento) {}
+	constructor(private readonly state: StateStore) {}
 
 	getSavedProjects(): SavedProject[] {
-		return this.globalState.get<SavedProject[]>(SAVED_PROJECTS_KEY, []);
+		return this.state.get(SAVED_PROJECTS_KEY, []);
 	}
 
 	saveProject(folderPath: string): void {
@@ -28,13 +29,13 @@ export class SavedProjectsService {
 			path: folderPath,
 			savedAt: Date.now()
 		});
-		this.globalState.update(SAVED_PROJECTS_KEY, saved);
+		this.state.update(SAVED_PROJECTS_KEY, saved);
 		this.unexcludePath(folderPath);
 	}
 
 	removeSavedProject(folderPath: string): void {
 		const saved = this.getSavedProjects();
-		this.globalState.update(SAVED_PROJECTS_KEY, saved.filter((p) => p.path !== folderPath));
+		this.state.update(SAVED_PROJECTS_KEY, saved.filter((p) => p.path !== folderPath));
 	}
 
 	isSaved(folderPath: string): boolean {
@@ -79,7 +80,7 @@ export class SavedProjectsService {
 		if (updates.description !== undefined) {
 			saved[index].description = updates.description || undefined;
 		}
-		this.globalState.update(SAVED_PROJECTS_KEY, saved);
+		this.state.update(SAVED_PROJECTS_KEY, saved);
 	}
 
 	getDisplayName(folderPath: string): string | undefined {
@@ -101,20 +102,20 @@ export class SavedProjectsService {
 	}
 
 	getExcludedPaths(): string[] {
-		return this.globalState.get<string[]>(EXCLUDED_PATHS_KEY, []);
+		return this.state.get(EXCLUDED_PATHS_KEY, []);
 	}
 
 	excludePath(folderPath: string): void {
 		const excluded = this.getExcludedPaths();
 		if (!excluded.includes(folderPath)) {
 			excluded.push(folderPath);
-			this.globalState.update(EXCLUDED_PATHS_KEY, excluded);
+			this.state.update(EXCLUDED_PATHS_KEY, excluded);
 		}
 	}
 
 	unexcludePath(folderPath: string): void {
 		const excluded = this.getExcludedPaths();
-		this.globalState.update(EXCLUDED_PATHS_KEY, excluded.filter((p) => p !== folderPath));
+		this.state.update(EXCLUDED_PATHS_KEY, excluded.filter((p) => p !== folderPath));
 	}
 
 	isExcluded(folderPath: string): boolean {
@@ -122,11 +123,11 @@ export class SavedProjectsService {
 	}
 
 	clearExcludedPaths(): void {
-		this.globalState.update(EXCLUDED_PATHS_KEY, []);
+		this.state.update(EXCLUDED_PATHS_KEY, []);
 	}
 
 	resetAll(): void {
-		this.globalState.update(SAVED_PROJECTS_KEY, []);
-		this.globalState.update(EXCLUDED_PATHS_KEY, []);
+		this.state.update(SAVED_PROJECTS_KEY, []);
+		this.state.update(EXCLUDED_PATHS_KEY, []);
 	}
 }

@@ -6,10 +6,11 @@ import * as vscode from 'vscode';
 import { computeDisplayNames } from '../utils/path-utils';
 import { WorkspaceHistoryService } from '../services/workspace-history-service';
 import { TreeStateService } from '../services/tree-state-service';
-import { hasLinkedWorktrees } from '../services/git-info-service';
+import { hasLinkedWorktrees, parseWorktreeOutput } from '../services/git-info-service';
 import { ProjectsCacheService, type CachedProject } from '../services/projects-cache-service';
 import { SavedProjectsService } from '../services/saved-projects-service';
 import { ProjectMetadataService } from '../services/project-metadata-service';
+import { StateStore } from '../core/state-store';
 
 /**
  * Minimal in-memory Memento for testing services that depend on globalState.
@@ -25,6 +26,36 @@ function createMemento(): vscode.Memento {
 			return Promise.resolve();
 		}
 	};
+}
+
+/**
+ * Create a spy Memento that records update calls.
+ */
+function createSpyMemento(): { memento: vscode.Memento; updates: Array<{ key: string; value: unknown }> } {
+	const store = new Map<string, unknown>();
+	const updates: Array<{ key: string; value: unknown }> = [];
+	const memento: vscode.Memento = {
+		keys: () => [...store.keys()],
+		get: (<T>(key: string, defaultValue?: T) =>
+			store.has(key) ? (store.get(key) as T) : defaultValue) as vscode.Memento['get'],
+		update: (key: string, value: unknown) => {
+			updates.push({ key, value });
+			if (value === undefined) {
+				store.delete(key);
+			} else {
+				store.set(key, value);
+			}
+			return Promise.resolve();
+		}
+	};
+	return { memento, updates };
+}
+
+/**
+ * Create a StateStore backed by a plain createMemento().
+ */
+function createStateStore(): StateStore {
+	return new StateStore(createMemento());
 }
 
 suite('Projectory Extension Test Suite', () => {
@@ -94,7 +125,7 @@ suite('computeDisplayNames', () => {
 
 suite('WorkspaceHistoryService recent management', () => {
 	test('removeFromHistory deletes only the given entry', () => {
-		const service = new WorkspaceHistoryService(createMemento());
+		const service = new WorkspaceHistoryService(createStateStore());
 		service.recordOpen('/tmp/projectory-test-a');
 		service.recordOpen('/tmp/projectory-test-b');
 
@@ -105,7 +136,7 @@ suite('WorkspaceHistoryService recent management', () => {
 	});
 
 	test('removeFromHistory is a no-op for an unknown path', () => {
-		const service = new WorkspaceHistoryService(createMemento());
+		const service = new WorkspaceHistoryService(createStateStore());
 		service.recordOpen('/tmp/projectory-test-a');
 
 		service.removeFromHistory('/tmp/projectory-test-missing');
@@ -114,7 +145,7 @@ suite('WorkspaceHistoryService recent management', () => {
 	});
 
 	test('clearHistory removes all entries', () => {
-		const service = new WorkspaceHistoryService(createMemento());
+		const service = new WorkspaceHistoryService(createStateStore());
 		service.recordOpen('/tmp/projectory-test-a');
 		service.recordOpen('/tmp/projectory-test-b');
 
@@ -126,42 +157,46 @@ suite('WorkspaceHistoryService recent management', () => {
 
 suite('TreeStateService', () => {
 	test('returns undefined for an untouched node', () => {
-		const service = new TreeStateService(createMemento());
+		const service = new TreeStateService(createStateStore());
 		assert.strictEqual(service.isExpanded('projects-root'), undefined);
 	});
 
 	test('persists expanded state', () => {
-		const service = new TreeStateService(createMemento());
+		const service = new TreeStateService(createStateStore());
 		service.setExpanded('recent-root', true);
 		assert.strictEqual(service.isExpanded('recent-root'), true);
 	});
 
 	test('persists collapsed state', () => {
-		const service = new TreeStateService(createMemento());
+		const service = new TreeStateService(createStateStore());
 		service.setExpanded('projects-root', false);
 		assert.strictEqual(service.isExpanded('projects-root'), false);
 	});
 
 	test('overwrites a previously stored state', () => {
-		const service = new TreeStateService(createMemento());
+		const service = new TreeStateService(createStateStore());
 		service.setExpanded('tag-work', true);
 		service.setExpanded('tag-work', false);
 		assert.strictEqual(service.isExpanded('tag-work'), false);
 	});
 
 	test('keeps independent state per node id', () => {
-		const service = new TreeStateService(createMemento());
+		const service = new TreeStateService(createStateStore());
 		service.setExpanded('projects-root', true);
 		service.setExpanded('recent-root', false);
 		assert.strictEqual(service.isExpanded('projects-root'), true);
 		assert.strictEqual(service.isExpanded('recent-root'), false);
 	});
 
-	test('reads state back from a shared memento (survives restart)', () => {
+	test('reads state back from a shared store (survives restart)', async () => {
 		const memento = createMemento();
-		new TreeStateService(memento).setExpanded('recent-root', true);
-		// A fresh service over the same store simulates a new session.
-		assert.strictEqual(new TreeStateService(memento).isExpanded('recent-root'), true);
+		const storeA = new StateStore(memento);
+		new TreeStateService(storeA).setExpanded('recent-root', true);
+		// Flush to ensure the memento is updated before creating a new store.
+		await storeA.flush();
+		// A fresh store over the same memento simulates a new session.
+		const storeB = new StateStore(memento);
+		assert.strictEqual(new TreeStateService(storeB).isExpanded('recent-root'), true);
 	});
 });
 
@@ -199,18 +234,18 @@ suite('ProjectsCacheService', () => {
 	];
 
 	test('returns an empty array when the cache is untouched', () => {
-		const service = new ProjectsCacheService(createMemento());
+		const service = new ProjectsCacheService(createStateStore());
 		assert.deepStrictEqual(service.get(), []);
 	});
 
 	test('round-trips a saved list', async () => {
-		const service = new ProjectsCacheService(createMemento());
+		const service = new ProjectsCacheService(createStateStore());
 		await service.save(sample);
 		assert.deepStrictEqual(service.get(), sample);
 	});
 
 	test('overwrites a previously cached list', async () => {
-		const service = new ProjectsCacheService(createMemento());
+		const service = new ProjectsCacheService(createStateStore());
 		await service.save(sample);
 
 		const next: CachedProject[] = [
@@ -221,17 +256,20 @@ suite('ProjectsCacheService', () => {
 	});
 
 	test('clear() empties the cache', async () => {
-		const service = new ProjectsCacheService(createMemento());
+		const service = new ProjectsCacheService(createStateStore());
 		await service.save(sample);
 		await service.clear();
 		assert.deepStrictEqual(service.get(), []);
 	});
 
-	test('survives a fresh service over the same memento', async () => {
+	test('survives a fresh store over the same memento', async () => {
 		const memento = createMemento();
-		await new ProjectsCacheService(memento).save(sample);
+		const storeA = new StateStore(memento);
+		await new ProjectsCacheService(storeA).save(sample);
+		await storeA.flush();
 		// Simulates a new session sharing the same globalState.
-		assert.deepStrictEqual(new ProjectsCacheService(memento).get(), sample);
+		const storeB = new StateStore(memento);
+		assert.deepStrictEqual(new ProjectsCacheService(storeB).get(), sample);
 	});
 });
 
@@ -253,9 +291,9 @@ suite('SavedProjectsService marker logic', () => {
 	});
 
 	function makeServices() {
-		const memento = createMemento();
-		const saved = new SavedProjectsService(memento);
-		const metadata = new ProjectMetadataService(memento);
+		const store = createStateStore();
+		const saved = new SavedProjectsService(store);
+		const metadata = new ProjectMetadataService(store);
 		return { saved, metadata };
 	}
 
@@ -315,5 +353,128 @@ suite('SavedProjectsService marker logic', () => {
 
 		assert.strictEqual(saved.isMarked(dirA, metadata), false);
 		assert.strictEqual(saved.isMarked(dirB, metadata), true);
+	});
+});
+
+suite('StateStore', () => {
+	test('read-your-writes: get returns updated value immediately after update', () => {
+		const { memento } = createSpyMemento();
+		const store = new StateStore(memento);
+		store.update('excludedPaths', ['/some/path']);
+		assert.deepStrictEqual(store.get('excludedPaths', []), ['/some/path']);
+	});
+
+	test('debounce coalescing: multiple updates to same key produce single persist', async () => {
+		const { memento, updates } = createSpyMemento();
+		const store = new StateStore(memento);
+		store.update('excludedPaths', ['/a']);
+		store.update('excludedPaths', ['/b']);
+		store.update('excludedPaths', ['/c']);
+		await store.flush();
+		const calls = updates.filter((u) => u.key === 'excludedPaths');
+		assert.strictEqual(calls.length, 1);
+		assert.deepStrictEqual(calls[0].value, ['/c']);
+	});
+
+	test('concurrent writes serialized: all dirty keys persisted with last-written values', async () => {
+		const { memento, updates } = createSpyMemento();
+		const store = new StateStore(memento);
+		store.update('excludedPaths', ['/x']);
+		store.update('ignoredSuggestionPaths', ['/y']);
+		await store.flush();
+		const excludedCalls = updates.filter((u) => u.key === 'excludedPaths');
+		const ignoredCalls = updates.filter((u) => u.key === 'ignoredSuggestionPaths');
+		assert.strictEqual(excludedCalls.length, 1);
+		assert.deepStrictEqual(excludedCalls[0].value, ['/x']);
+		assert.strictEqual(ignoredCalls.length, 1);
+		assert.deepStrictEqual(ignoredCalls[0].value, ['/y']);
+	});
+
+	test('flush: memento.update called with pending value immediately', async () => {
+		const { memento, updates } = createSpyMemento();
+		const store = new StateStore(memento);
+		store.update('excludedPaths', ['/flush-test']);
+		assert.strictEqual(updates.filter((u) => u.key === 'excludedPaths').length, 0);
+		await store.flush();
+		const calls = updates.filter((u) => u.key === 'excludedPaths');
+		assert.strictEqual(calls.length, 1);
+		assert.deepStrictEqual(calls[0].value, ['/flush-test']);
+	});
+
+	test('undefined clear: update with undefined then no-default get returns undefined', async () => {
+		const { memento } = createSpyMemento();
+		const store = new StateStore(memento);
+		store.update('projectory.scannedProjectsCache', [{ path: '/p', name: 'p', isGitRepo: true, hasWorktrees: false }]);
+		store.update('projectory.scannedProjectsCache', undefined);
+		assert.strictEqual(store.get('projectory.scannedProjectsCache'), undefined);
+	});
+});
+
+suite('parseWorktreeOutput', () => {
+	test('main worktree is named root', () => {
+		const output = [
+			'worktree /repo/main',
+			'HEAD abc1234',
+			'branch refs/heads/main',
+			''
+		].join('\n');
+		const result = parseWorktreeOutput(output, '/repo/main');
+		assert.strictEqual(result.length, 1);
+		assert.strictEqual(result[0].name, 'root');
+		assert.strictEqual(result[0].isMain, true);
+	});
+
+	test('linked worktree uses branch name', () => {
+		const output = [
+			'worktree /repo/main',
+			'HEAD abc1234',
+			'branch refs/heads/main',
+			'',
+			'worktree /repo/.worktrees/feature-x',
+			'HEAD def5678',
+			'branch refs/heads/feature-x',
+			''
+		].join('\n');
+		const result = parseWorktreeOutput(output, '/repo/main');
+		assert.strictEqual(result.length, 2);
+		assert.strictEqual(result[1].name, 'feature-x');
+		assert.strictEqual(result[1].branch, 'feature-x');
+		assert.strictEqual(result[1].isMain, false);
+	});
+
+	test('detached HEAD yields short-sha branch and detached name', () => {
+		const output = [
+			'worktree /repo/main',
+			'HEAD abc1234',
+			'branch refs/heads/main',
+			'',
+			'worktree /repo/.worktrees/detached-wt',
+			'HEAD abcdef1',
+			'detached',
+			''
+		].join('\n');
+		const result = parseWorktreeOutput(output, '/repo/main');
+		assert.strictEqual(result.length, 2);
+		assert.strictEqual(result[1].name, 'detached');
+		assert.strictEqual(result[1].branch, '(abcdef1)');
+	});
+
+	test('bare entries are skipped', () => {
+		const output = [
+			'worktree /repo/main',
+			'HEAD abc1234',
+			'branch refs/heads/main',
+			'',
+			'worktree /repo/bare',
+			'HEAD 0000000',
+			'bare',
+			''
+		].join('\n');
+		const result = parseWorktreeOutput(output, '/repo/main');
+		assert.strictEqual(result.length, 1);
+	});
+
+	test('empty input returns empty array', () => {
+		assert.deepStrictEqual(parseWorktreeOutput('', '/repo/main'), []);
 	});
 });

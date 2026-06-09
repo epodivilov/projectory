@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import type { RecentFolder, Project, SortOrder, SortDirection } from '../types';
 import { isWorktreePath } from './git-info-service';
+import type { StateStore } from '../core/state-store';
 
 const WORKSPACE_HISTORY_KEY = 'workspaceHistory';
 const MAX_HISTORY_ENTRIES = 100;
@@ -20,7 +21,7 @@ export interface WorkspaceHistoryEntry {
  * Unified service for tracking workspace history.
  */
 export class WorkspaceHistoryService {
-	constructor(private readonly globalState: vscode.Memento) {}
+	constructor(private readonly state: StateStore) {}
 
 	/**
 	 * Record current workspace as opened.
@@ -74,7 +75,7 @@ export class WorkspaceHistoryService {
 		// Prune old entries if exceeds max
 		this.pruneHistory(history);
 
-		this.globalState.update(WORKSPACE_HISTORY_KEY, history);
+		this.state.update(WORKSPACE_HISTORY_KEY, history);
 	}
 
 	/**
@@ -83,7 +84,7 @@ export class WorkspaceHistoryService {
 	removeFromHistory(folderPath: string): void {
 		const history = this.getHistory();
 		delete history[folderPath];
-		this.globalState.update(WORKSPACE_HISTORY_KEY, history);
+		this.state.update(WORKSPACE_HISTORY_KEY, history);
 	}
 
 	/**
@@ -234,7 +235,7 @@ export class WorkspaceHistoryService {
 			firstOpened: timestamp
 		};
 
-		this.globalState.update(WORKSPACE_HISTORY_KEY, history);
+		this.state.update(WORKSPACE_HISTORY_KEY, history);
 		return true;
 	}
 
@@ -250,7 +251,7 @@ export class WorkspaceHistoryService {
 	 * Clear all history
 	 */
 	clearHistory(): void {
-		this.globalState.update(WORKSPACE_HISTORY_KEY, {});
+		this.state.update(WORKSPACE_HISTORY_KEY, {});
 	}
 
 	/**
@@ -277,7 +278,7 @@ export class WorkspaceHistoryService {
 		}
 
 		if (removedCount > 0) {
-			this.globalState.update(WORKSPACE_HISTORY_KEY, history);
+			this.state.update(WORKSPACE_HISTORY_KEY, history);
 		}
 		return removedCount;
 	}
@@ -286,7 +287,7 @@ export class WorkspaceHistoryService {
 	 * Get raw history map
 	 */
 	private getHistory(): Record<string, WorkspaceHistoryEntry> {
-		return this.globalState.get<Record<string, WorkspaceHistoryEntry>>(WORKSPACE_HISTORY_KEY, {});
+		return this.state.get(WORKSPACE_HISTORY_KEY, {});
 	}
 
 	/**

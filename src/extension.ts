@@ -10,6 +10,7 @@ import { ProjectsCacheService } from './services/projects-cache-service';
 import { getSuggestionConfig, onConfigChange } from './services/configuration-service';
 import { SuggestionService } from './services/suggestion-service';
 import { registerAllCommands, initializeViewContext, updateViewContextOnConfigChange, type CommandContext } from './commands';
+import { StateStore } from './core/state-store';
 
 // Service instances
 let projectsTreeProvider: ProjectsTreeProvider;
@@ -26,19 +27,25 @@ let selectedProjectPath: string | null = null;
 // Track suggestion timeout for cleanup
 let suggestionTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
+// Shared state store
+let stateStore: StateStore | null = null;
+
 export async function activate(context: vscode.ExtensionContext) {
+	// Initialize shared state store
+	stateStore = new StateStore(context.globalState);
+
 	// Initialize services
-	historyService = new WorkspaceHistoryService(context.globalState);
+	historyService = new WorkspaceHistoryService(stateStore);
 	historyService.cleanupWorktreeEntries(); // Clean up legacy worktree entries
-	savedProjectsService = new SavedProjectsService(context.globalState);
+	savedProjectsService = new SavedProjectsService(stateStore);
 	tagService = new TagService();
-	metadataService = new ProjectMetadataService(context.globalState);
-	const treeStateService = new TreeStateService(context.globalState);
-	const projectsCacheService = new ProjectsCacheService(context.globalState);
+	metadataService = new ProjectMetadataService(stateStore);
+	const treeStateService = new TreeStateService(stateStore);
+	const projectsCacheService = new ProjectsCacheService(stateStore);
 	detailsWebviewProvider = new DetailsWebviewProvider(context.extensionUri, historyService, savedProjectsService);
 	projectsTreeProvider = new ProjectsTreeProvider(historyService, savedProjectsService, tagService, metadataService, treeStateService, projectsCacheService);
 	suggestionService = new SuggestionService(
-		context.globalState,
+		stateStore,
 		historyService,
 		savedProjectsService,
 		metadataService,
@@ -144,7 +151,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 }
 
-export function deactivate() {
+export function deactivate(): Promise<void> | undefined {
 	// Clear pending suggestion timeout
 	if (suggestionTimeoutId) {
 		clearTimeout(suggestionTimeoutId);
@@ -153,4 +160,7 @@ export function deactivate() {
 
 	// Clear selected project
 	selectedProjectPath = null;
+
+	// Flush any pending state writes
+	return stateStore?.flush();
 }
