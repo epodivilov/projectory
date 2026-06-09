@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
 import type { RecentFolder, Project, SortOrder, SortDirection } from '../types';
 import { isWorktreePath } from './git-info-service';
 
@@ -98,7 +97,6 @@ export class WorkspaceHistoryService {
 	/**
 	 * Get recent folders excluding projects.
 	 * Returns folders sorted by lastOpened (most recent first).
-	 * Also removes non-existing paths from history.
 	 */
 	getRecentFolders(excludeProjects: Project[]): RecentFolder[] {
 		const history = this.getHistorySorted();
@@ -106,15 +104,8 @@ export class WorkspaceHistoryService {
 		const projectNames = new Set(excludeProjects.map((p) => p.name));
 
 		const folders: RecentFolder[] = [];
-		const pathsToRemove: string[] = [];
 
 		for (const entry of history) {
-			// Skip and mark for removal if path doesn't exist
-			if (!fs.existsSync(entry.path)) {
-				pathsToRemove.push(entry.path);
-				continue;
-			}
-
 			// Skip if it's a project
 			if (projectPaths.has(entry.path)) {
 				continue;
@@ -157,11 +148,6 @@ export class WorkspaceHistoryService {
 				lastOpened: entry.lastOpened,
 				openCount: entry.openCount
 			});
-		}
-
-		// Clean up non-existing paths from history
-		for (const pathToRemove of pathsToRemove) {
-			this.removeFromHistory(pathToRemove);
 		}
 
 		return folders;

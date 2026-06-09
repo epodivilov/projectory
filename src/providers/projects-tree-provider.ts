@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as fs from "fs";
 import type { Project, ProjectTag, ProjectoryConfig, RecentFolder } from "../types";
 import {
   FolderTreeItem,
@@ -116,6 +117,7 @@ export class ProjectsTreeProvider
   private _loadingPromise: Promise<void> | null = null;
   private _filterTagIds: string[] = [];
   private _hasLoaded = false;
+  private _loadGeneration = 0;
 
   constructor(
     private readonly historyService: WorkspaceHistoryService,
@@ -769,10 +771,17 @@ export class ProjectsTreeProvider
    * Refresh the projects list
    */
   async refresh(): Promise<void> {
+    if (this._loadingPromise) {
+      return this._loadingPromise;
+    }
     this._loadingPromise = this.loadProjects();
-    await this._loadingPromise;
-    this._isInitialized = true;
-    this._onDidChangeTreeData.fire();
+    try {
+      await this._loadingPromise;
+    } finally {
+      this._loadingPromise = null;
+      this._isInitialized = true;
+      this._onDidChangeTreeData.fire();
+    }
   }
 
   /**
@@ -784,6 +793,7 @@ export class ProjectsTreeProvider
    * scan — see seedFromCache for the instant part.
    */
   private async loadProjects(): Promise<void> {
+    const generation = ++this._loadGeneration;
     const config = getConfig();
 
     // 1. Cold start only: paint the user's known (saved) projects right away so
@@ -805,7 +815,14 @@ export class ProjectsTreeProvider
     const savedProjects = this.savedProjectsService.toProjects();
 
     const scannedPaths = new Set(filteredScanned.map((p) => p.path));
-    const uniqueSaved = savedProjects.filter((p) => !scannedPaths.has(p.path));
+    const uniqueSavedCandidates = savedProjects.filter((p) => !scannedPaths.has(p.path));
+
+    const existsResults = await Promise.all(
+      uniqueSavedCandidates.map((p) =>
+        fs.promises.access(p.path).then(() => true).catch(() => false)
+      )
+    );
+    const uniqueSaved = uniqueSavedCandidates.filter((_, i) => existsResults[i]);
 
     this._projects = [...filteredScanned, ...uniqueSaved];
 
@@ -849,6 +866,33 @@ export class ProjectsTreeProvider
       .catch((err) => {
         console.error("Error initializing project timestamps:", err);
       });
+
+    // Remove stale recent-folder entries from history in background (non-blocking)
+    if (config.showRecentFolders) {
+      const foldersToCheck = [...this._recentFolders];
+      Promise.all(
+        foldersToCheck.map((folder) =>
+          fs.promises.access(folder.path).then(() => true).catch(() => false)
+        )
+      )
+        .then((existsResults) => {
+          const missing = foldersToCheck.filter((_, i) => !existsResults[i]);
+          if (missing.length > 0) {
+            for (const folder of missing) {
+              this.historyService.removeFromHistory(folder.path);
+            }
+            if (generation !== this._loadGeneration) {
+              return;
+            }
+            this._recentFolders = this.historyService.getRecentFolders(this._projects);
+            this.applyDisplayNames(this._recentFolders);
+            this.fireChange();
+          }
+        })
+        .catch((err) => {
+          console.error("Error cleaning up recent folders:", err);
+        });
+    }
   }
 
   /**

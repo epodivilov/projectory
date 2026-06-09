@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
 import type { SavedProject, Project } from '../types';
 import { normalizePath } from '../utils/path-utils';
 import type { ProjectMetadataService } from './project-metadata-service';
@@ -15,8 +14,7 @@ export class SavedProjectsService {
 	constructor(private readonly globalState: vscode.Memento) {}
 
 	getSavedProjects(): SavedProject[] {
-		const saved = this.globalState.get<SavedProject[]>(SAVED_PROJECTS_KEY, []);
-		return saved.filter((p) => fs.existsSync(p.path));
+		return this.globalState.get<SavedProject[]>(SAVED_PROJECTS_KEY, []);
 	}
 
 	saveProject(folderPath: string): void {
