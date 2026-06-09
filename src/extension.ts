@@ -88,13 +88,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}, 3000);
 
-	// Refresh when view becomes visible (in case data changed while hidden)
-	const visibilityListener = projectsTreeView.onDidChangeVisibility(async (e) => {
-		if (e.visible) {
-			await projectsTreeProvider.refresh();
-		}
-	});
-
 	// Persist expand/collapse state so it survives reloads and restarts
 	const expandListener = projectsTreeView.onDidExpandElement((e) => {
 		projectsTreeProvider.recordExpandState(e.element, true);
@@ -142,7 +135,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Register all disposables
 	context.subscriptions.push(
 		projectsTreeView,
-		visibilityListener,
 		expandListener,
 		collapseListener,
 		detailsViewDisposable,
