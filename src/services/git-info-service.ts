@@ -1,12 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import type { GitInfo, Project, Worktree } from '../types';
 import * as fs from 'fs';
 import type { WorkspaceHistoryService } from './workspace-history-service';
-
-const execAsync = promisify(exec);
+import { runGit } from '../git/git-service';
 
 /**
  * Get the date of the last commit in a git repository
@@ -17,9 +14,7 @@ export async function getLastCommitDate(folderPath: string): Promise<number | un
 		const gitPath = path.join(folderPath, '.git');
 		await vscode.workspace.fs.stat(vscode.Uri.file(gitPath));
 
-		const { stdout } = await execAsync('git log -1 --format=%ct', {
-			cwd: folderPath
-		});
+		const stdout = await runGit(['log', '-1', '--format=%ct'], folderPath);
 
 		const unixSeconds = parseInt(stdout.trim(), 10);
 		if (isNaN(unixSeconds)) {
@@ -45,9 +40,7 @@ export async function getGitInfo(folderPath: string): Promise<GitInfo | undefine
 
 		// Get current branch
 		try {
-			const { stdout } = await execAsync('git rev-parse --abbrev-ref HEAD', {
-				cwd: folderPath
-			});
+			const stdout = await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], folderPath);
 			info.branch = stdout.trim();
 		} catch {
 			// Ignore errors (detached HEAD, etc.)
@@ -55,9 +48,7 @@ export async function getGitInfo(folderPath: string): Promise<GitInfo | undefine
 
 		// Get remote origin URL
 		try {
-			const { stdout } = await execAsync('git config --get remote.origin.url', {
-				cwd: folderPath
-			});
+			const stdout = await runGit(['config', '--get', 'remote.origin.url'], folderPath);
 			info.remoteUrl = stdout.trim();
 		} catch {
 			// No remote configured
@@ -65,9 +56,7 @@ export async function getGitInfo(folderPath: string): Promise<GitInfo | undefine
 
 		// Check for uncommitted changes
 		try {
-			const { stdout } = await execAsync('git status --porcelain', {
-				cwd: folderPath
-			});
+			const stdout = await runGit(['status', '--porcelain'], folderPath);
 			info.hasUncommittedChanges = stdout.trim().length > 0;
 		} catch {
 			// Ignore errors
@@ -144,10 +133,7 @@ export async function hasLinkedWorktrees(folderPath: string): Promise<boolean> {
  */
 export async function getWorktrees(folderPath: string): Promise<Worktree[]> {
 	try {
-		const { stdout } = await execAsync('git worktree list --porcelain', {
-			cwd: folderPath
-		});
-
+		const stdout = await runGit(['worktree', 'list', '--porcelain'], folderPath);
 		return parseWorktreeOutput(stdout, folderPath);
 	} catch {
 		return [];
@@ -157,7 +143,7 @@ export async function getWorktrees(folderPath: string): Promise<Worktree[]> {
 /**
  * Parse git worktree list --porcelain output
  */
-function parseWorktreeOutput(output: string, mainPath: string): Worktree[] {
+export function parseWorktreeOutput(output: string, mainPath: string): Worktree[] {
 	const worktrees: Worktree[] = [];
 	const blocks = output.trim().split('\n\n');
 
