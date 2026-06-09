@@ -121,17 +121,17 @@ export async function initializeProjectTimestamps(
 }
 
 /**
- * Cheap, synchronous check for whether a repo has any linked worktrees, without
- * spawning git. Git records linked worktrees under `<repo>/.git/worktrees/<name>`,
+ * Check for whether a repo has any linked worktrees, without spawning git.
+ * Git records linked worktrees under `<repo>/.git/worktrees/<name>`,
  * so an absent or empty directory means the repo has only its main worktree.
  *
  * Used to avoid the expensive `git worktree list` subprocess for the common case
  * of repos that have no worktrees at all.
  */
-export function hasLinkedWorktrees(folderPath: string): boolean {
+export async function hasLinkedWorktrees(folderPath: string): Promise<boolean> {
 	const worktreesDir = path.join(folderPath, '.git', 'worktrees');
 	try {
-		return fs.readdirSync(worktreesDir).length > 0;
+		return (await fs.promises.readdir(worktreesDir)).length > 0;
 	} catch {
 		// Directory doesn't exist — no linked worktrees.
 		return false;

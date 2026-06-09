@@ -176,19 +176,19 @@ suite('hasLinkedWorktrees', () => {
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 	});
 
-	test('returns false when .git/worktrees is absent', () => {
+	test('returns false when .git/worktrees is absent', async () => {
 		fs.mkdirSync(path.join(tmpDir, '.git'));
-		assert.strictEqual(hasLinkedWorktrees(tmpDir), false);
+		assert.strictEqual(await hasLinkedWorktrees(tmpDir), false);
 	});
 
-	test('returns false when .git/worktrees exists but is empty', () => {
+	test('returns false when .git/worktrees exists but is empty', async () => {
 		fs.mkdirSync(path.join(tmpDir, '.git', 'worktrees'), { recursive: true });
-		assert.strictEqual(hasLinkedWorktrees(tmpDir), false);
+		assert.strictEqual(await hasLinkedWorktrees(tmpDir), false);
 	});
 
-	test('returns true when .git/worktrees contains an entry', () => {
+	test('returns true when .git/worktrees contains an entry', async () => {
 		fs.mkdirSync(path.join(tmpDir, '.git', 'worktrees', 'feature-x'), { recursive: true });
-		assert.strictEqual(hasLinkedWorktrees(tmpDir), true);
+		assert.strictEqual(await hasLinkedWorktrees(tmpDir), true);
 	});
 });
 

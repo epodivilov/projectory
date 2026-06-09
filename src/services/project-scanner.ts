@@ -85,7 +85,7 @@ async function createProjectWithWorktrees(uri: vscode.Uri): Promise<Project> {
 
 	// Skip the expensive `git worktree list` subprocess unless this repo actually
 	// has linked worktrees (most don't). This is the dominant cost of a scan.
-	if (!hasLinkedWorktrees(uri.fsPath)) {
+	if (!(await hasLinkedWorktrees(uri.fsPath))) {
 		return { name, path: uri.fsPath, uri, isGitRepo: true, hasWorktrees: false };
 	}
 
