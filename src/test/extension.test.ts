@@ -11,6 +11,7 @@ import { ProjectsCacheService, type CachedProject } from '../services/projects-c
 import { SavedProjectsService } from '../services/saved-projects-service';
 import { ProjectMetadataService } from '../services/project-metadata-service';
 import { StateStore } from '../core/state-store';
+import { partitionScannedSaved, filterProjectsWithAllTags } from '../core/project-logic';
 
 /**
  * Minimal in-memory Memento for testing services that depend on globalState.
@@ -407,6 +408,76 @@ suite('StateStore', () => {
 		store.update('projectory.scannedProjectsCache', [{ path: '/p', name: 'p', isGitRepo: true, hasWorktrees: false }]);
 		store.update('projectory.scannedProjectsCache', undefined);
 		assert.strictEqual(store.get('projectory.scannedProjectsCache'), undefined);
+	});
+});
+
+suite('partitionScannedSaved', () => {
+	type P = { path: string };
+	const p = (path: string): P => ({ path });
+
+	test('deduplicates saved by scanned paths', () => {
+		const scanned = [p('/code/alpha'), p('/code/beta')];
+		const saved = [p('/code/alpha'), p('/code/gamma')];
+		const { filteredScanned, uniqueSavedCandidates } = partitionScannedSaved(scanned, saved, []);
+		assert.deepStrictEqual(filteredScanned.map((x) => x.path), ['/code/alpha', '/code/beta']);
+		assert.deepStrictEqual(uniqueSavedCandidates.map((x) => x.path), ['/code/gamma']);
+	});
+
+	test('removes excluded paths from scanned', () => {
+		const scanned = [p('/code/alpha'), p('/code/beta'), p('/code/gamma')];
+		const saved: P[] = [];
+		const { filteredScanned } = partitionScannedSaved(scanned, saved, ['/code/beta']);
+		assert.deepStrictEqual(filteredScanned.map((x) => x.path), ['/code/alpha', '/code/gamma']);
+	});
+
+	test('empty inputs produce empty outputs', () => {
+		const { filteredScanned, uniqueSavedCandidates } = partitionScannedSaved([], [], []);
+		assert.deepStrictEqual(filteredScanned, []);
+		assert.deepStrictEqual(uniqueSavedCandidates, []);
+	});
+
+	test('all saved already in scanned → empty uniqueSavedCandidates', () => {
+		const scanned = [p('/code/a'), p('/code/b')];
+		const saved = [p('/code/a'), p('/code/b')];
+		const { uniqueSavedCandidates } = partitionScannedSaved(scanned, saved, []);
+		assert.deepStrictEqual(uniqueSavedCandidates, []);
+	});
+});
+
+suite('filterProjectsWithAllTags', () => {
+	type P = { path: string };
+	const p = (path: string): P => ({ path });
+
+	const tags: Record<string, string[]> = {
+		'/code/alpha': ['work', 'frontend'],
+		'/code/beta': ['work', 'backend'],
+		'/code/gamma': ['personal'],
+		'/code/delta': [],
+	};
+	const getTags = (path: string): string[] => tags[path] ?? [];
+
+	test('matches projects with all specified tags', () => {
+		const projects = [p('/code/alpha'), p('/code/beta'), p('/code/gamma')];
+		const result = filterProjectsWithAllTags(projects, getTags, ['work']);
+		assert.deepStrictEqual(result.map((x) => x.path), ['/code/alpha', '/code/beta']);
+	});
+
+	test('missing any tag excludes the project', () => {
+		const projects = [p('/code/alpha'), p('/code/beta')];
+		const result = filterProjectsWithAllTags(projects, getTags, ['work', 'frontend']);
+		assert.deepStrictEqual(result.map((x) => x.path), ['/code/alpha']);
+	});
+
+	test('empty tagIds returns all projects', () => {
+		const projects = [p('/code/alpha'), p('/code/beta'), p('/code/gamma')];
+		const result = filterProjectsWithAllTags(projects, getTags, []);
+		assert.deepStrictEqual(result.length, 3);
+	});
+
+	test('project with no tags is excluded when tagIds is non-empty', () => {
+		const projects = [p('/code/delta')];
+		const result = filterProjectsWithAllTags(projects, getTags, ['work']);
+		assert.deepStrictEqual(result, []);
 	});
 });
 
