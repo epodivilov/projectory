@@ -10,6 +10,9 @@
 			"type": "extensionHost",
 			"request": "launch",
 			"args": [
+				// Copilot Chat's ClaudeWorkspaceFolderService ingests ~/.claude
+				// session transcripts and OOMs the extension host (~4GB).
+				"--disable-extension=GitHub.copilot-chat",
 				"--extensionDevelopmentPath=${workspaceFolder}"
 			],
 			"outFiles": [
