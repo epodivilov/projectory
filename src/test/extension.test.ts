@@ -11,7 +11,7 @@ import { ProjectsCacheService, type CachedProject } from '../services/projects-c
 import { SavedProjectsService } from '../services/saved-projects-service';
 import { ProjectMetadataService } from '../services/project-metadata-service';
 import { StateStore } from '../core/state-store';
-import { partitionScannedSaved, filterProjectsWithAllTags } from '../core/project-logic';
+import { partitionScannedSaved, filterProjectsWithAllTags, countPathsUnder } from '../core/project-logic';
 
 /**
  * Minimal in-memory Memento for testing services that depend on globalState.
@@ -408,6 +408,26 @@ suite('StateStore', () => {
 		store.update('projectory.scannedProjectsCache', [{ path: '/p', name: 'p', isGitRepo: true, hasWorktrees: false }]);
 		store.update('projectory.scannedProjectsCache', undefined);
 		assert.strictEqual(store.get('projectory.scannedProjectsCache'), undefined);
+	});
+});
+
+suite('countPathsUnder', () => {
+	test('counts entries strictly nested under the parent', () => {
+		const paths = ['/home/u/foo', '/home/u/bar/baz', '/home/u/bar'];
+		assert.strictEqual(countPathsUnder(paths, '/home/u', '/'), 3);
+		assert.strictEqual(countPathsUnder(paths, '/home/u/bar', '/'), 1);
+	});
+
+	test('does not count the parent path itself', () => {
+		assert.strictEqual(countPathsUnder(['/home/u'], '/home/u', '/'), 0);
+	});
+
+	test('does not count a sibling sharing a name prefix', () => {
+		assert.strictEqual(countPathsUnder(['/foobar', '/foobar/x'], '/foo', '/'), 0);
+	});
+
+	test('handles a parent path with a trailing separator', () => {
+		assert.strictEqual(countPathsUnder(['/a/b'], '/a/', '/'), 1);
 	});
 });
 

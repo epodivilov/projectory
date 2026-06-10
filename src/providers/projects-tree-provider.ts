@@ -784,6 +784,31 @@ export class ProjectsTreeProvider
       isFromRecent: boolean[];
     };
 
+    // Saving an ancestor folder hides every recent entry nested under it
+    // (subfolder filter in getRecentFolders) — confirm before proceeding.
+    const isSaveTarget =
+      target instanceof ProjectsRootTreeItem ||
+      target instanceof TagTreeItem ||
+      target instanceof UntaggedTreeItem;
+    if (isSaveTarget) {
+      let hiddenCount = 0;
+      for (let i = 0; i < paths.length; i++) {
+        if (isFromRecent[i]) {
+          hiddenCount += this.store.countRecentUnder(paths[i]);
+        }
+      }
+      if (hiddenCount > 0) {
+        const confirm = await vscode.window.showWarningMessage(
+          `Saving will hide ${hiddenCount} recent folder${hiddenCount !== 1 ? "s" : ""} nested under the dropped folder. Save anyway?`,
+          { modal: true },
+          "Save"
+        );
+        if (confirm !== "Save") {
+          return;
+        }
+      }
+    }
+
     // Mark dropped items so they end up in the Saved section. Tag drops imply
     // marked-ness via the tag; root/Untagged drops need an explicit save record
     // because dragging a Scanned item onto Saved must persist user intent.

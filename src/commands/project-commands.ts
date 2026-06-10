@@ -118,6 +118,19 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 	const saveToProjectsCommand = vscode.commands.registerCommand(
 		'projectory.saveToProjects',
 		async (item: RecentFolderTreeItem) => {
+			// Saving an ancestor folder hides every recent entry nested under it
+			// (subfolder filter in getRecentFolders) — make that consequence explicit.
+			const hiddenCount = ctx.store.countRecentUnder(item.folder.path);
+			if (hiddenCount > 0) {
+				const confirm = await vscode.window.showWarningMessage(
+					`Saving "${item.folder.name}" will hide ${hiddenCount} recent folder${hiddenCount !== 1 ? 's' : ''} nested under it. Save anyway?`,
+					{ modal: true },
+					'Save'
+				);
+				if (confirm !== 'Save') {
+					return;
+				}
+			}
 			ctx.savedProjectsService.saveProject(item.folder.path);
 			await ctx.store.reconcileMarkers();
 		}

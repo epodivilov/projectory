@@ -5,7 +5,8 @@ import { scanProjects } from "../services/project-scanner";
 import { initializeProjectTimestamps } from "../services/git-info-service";
 import { getConfig } from "../services/configuration-service";
 import { computeDisplayNames } from "../utils/path-utils";
-import { partitionScannedSaved } from "./project-logic";
+import * as path from "path";
+import { partitionScannedSaved, countPathsUnder } from "./project-logic";
 import type { WorkspaceHistoryService } from "../services/workspace-history-service";
 import type { SavedProjectsService } from "../services/saved-projects-service";
 import type { ProjectsCacheService } from "../services/projects-cache-service";
@@ -77,6 +78,19 @@ export class ProjectStore implements vscode.Disposable {
    */
   hasLoaded(): boolean {
     return this._hasLoaded;
+  }
+
+  /**
+   * Number of recent folders nested under the given path. Saving an
+   * ancestor folder hides these via the subfolder filter in
+   * getRecentFolders — callers should warn the user before proceeding.
+   */
+  countRecentUnder(parentPath: string): number {
+    return countPathsUnder(
+      this._recentFolders.map((f) => f.path),
+      parentPath,
+      path.sep
+    );
   }
 
   emitChange(change: ProjectStoreChange): void {

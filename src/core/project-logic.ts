@@ -23,6 +23,17 @@ export function partitionScannedSaved<T extends { path: string }>(
 }
 
 /**
+ * Count paths strictly nested under the given parent path.
+ * The separator is appended to the parent before matching, so a sibling
+ * sharing a name prefix ('/foo' vs '/foobar') is not counted, and the
+ * parent itself is not counted either.
+ */
+export function countPathsUnder(paths: string[], parentPath: string, sep: string): number {
+  const prefix = parentPath.endsWith(sep) ? parentPath : parentPath + sep;
+  return paths.filter((p) => p.startsWith(prefix)).length;
+}
+
+/**
  * Filter projects that have ALL of the specified tag IDs.
  * When tagIds is empty, all projects are returned.
  */
