@@ -38,7 +38,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 				ctx.projectsTreeProvider.fireChange();
 			} else {
 				ctx.setSelectedPath(itemPath);
-				const project = ctx.projectsTreeProvider.findProjectByPath(itemPath);
+				const project = ctx.store.findProjectByPath(itemPath);
 				if (project) {
 					ctx.detailsWebviewProvider.showProject(project);
 				}
@@ -58,7 +58,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 				ctx.projectsTreeProvider.fireChange();
 			} else {
 				ctx.setSelectedPath(itemPath);
-				const folder = ctx.projectsTreeProvider.findFolderByPath(itemPath);
+				const folder = ctx.store.findFolderByPath(itemPath);
 				if (folder) {
 					ctx.detailsWebviewProvider.showFolder(folder);
 				}
@@ -78,7 +78,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 				ctx.projectsTreeProvider.fireChange();
 			} else {
 				ctx.setSelectedPath(itemPath);
-				const parentProject = ctx.projectsTreeProvider.findProjectByPath(arg.parentPath);
+				const parentProject = ctx.store.findProjectByPath(arg.parentPath);
 				if (parentProject?.worktrees) {
 					const worktree = parentProject.worktrees.find((w) => w.path === itemPath);
 					if (worktree) {
@@ -101,7 +101,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 			// Without this a tagged-but-unsaved project would immediately reappear
 			// in Saved on the next render.
 			ctx.savedProjectsService.clearAllMarkers(item.project.path, ctx.metadataService);
-			await ctx.projectsTreeProvider.refresh();
+			await ctx.store.refresh();
 			ctx.setSelectedPath(null);
 			ctx.detailsWebviewProvider.clearProject();
 		}
@@ -112,7 +112,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 		async (item: ProjectTreeItem) => {
 			// Hide from future scans without touching markers (there are none).
 			ctx.savedProjectsService.excludePath(item.project.path);
-			await ctx.projectsTreeProvider.refresh();
+			await ctx.store.refresh();
 			ctx.setSelectedPath(null);
 			ctx.detailsWebviewProvider.clearProject();
 		}
@@ -122,7 +122,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 		'projectory.saveToProjects',
 		async (item: RecentFolderTreeItem) => {
 			ctx.savedProjectsService.saveProject(item.folder.path);
-			await ctx.projectsTreeProvider.refresh();
+			await ctx.store.refresh();
 		}
 	);
 
@@ -130,7 +130,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 		'projectory.removeFromRecent',
 		async (item: RecentFolderTreeItem) => {
 			ctx.historyService.removeFromHistory(item.folder.path);
-			await ctx.projectsTreeProvider.refresh();
+			await ctx.store.refresh();
 		}
 	);
 
@@ -142,7 +142,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 			// inside a scan root, which is harmless.
 			ctx.historyService.removeFromHistory(item.folder.path);
 			ctx.savedProjectsService.excludePath(item.folder.path);
-			await ctx.projectsTreeProvider.refresh();
+			await ctx.store.refresh();
 		}
 	);
 
@@ -158,7 +158,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 				return;
 			}
 			ctx.historyService.clearHistory();
-			await ctx.projectsTreeProvider.refresh();
+			await ctx.store.refresh();
 		}
 	);
 
@@ -179,7 +179,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 			ctx.savedProjectsService.updateProject(item.project.path, {
 				displayName: newName.trim()
 			});
-			await ctx.projectsTreeProvider.refresh();
+			await ctx.store.refresh();
 			await ctx.detailsWebviewProvider.refreshCurrentItem();
 		}
 	);
@@ -201,7 +201,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 			ctx.savedProjectsService.updateProject(item.project.path, {
 				description: newDescription.trim()
 			});
-			ctx.projectsTreeProvider.fireChange();
+			ctx.store.emitChange({ kind: 'reset' });
 			await ctx.detailsWebviewProvider.refreshCurrentItem();
 		}
 	);

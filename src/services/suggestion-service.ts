@@ -12,6 +12,7 @@ import type { ProjectMetadataService } from "./project-metadata-service";
 import { isWorktreePath } from "./git-info-service";
 import { normalizePath, createNormalizedPathSet, normalizedSetHas } from "../utils/path-utils";
 import type { StateStore } from "../core/state-store";
+import type { ProjectStore } from "../core/project-store";
 
 const IGNORED_SUGGESTIONS_KEY = "ignoredSuggestionPaths";
 const POSTPONED_SUGGESTIONS_KEY = "postponedSuggestions";
@@ -20,7 +21,7 @@ const POSTPONE_DURATION_DAYS = 7;
 /**
  * Service for managing folder save suggestions
  */
-export class SuggestionService {
+export class SuggestionService implements vscode.Disposable {
   private shownThisSession = new Set<string>();
 
   constructor(
@@ -28,8 +29,25 @@ export class SuggestionService {
     private readonly historyService: WorkspaceHistoryService,
     private readonly savedProjectsService: SavedProjectsService,
     private readonly metadataService: ProjectMetadataService,
-    private readonly getProjectPaths?: () => string[]
+    private readonly store: ProjectStore
   ) {}
+
+  dispose(): void {
+    // Nothing to clean up — suggestions are fire-and-forget notifications.
+  }
+
+  private getAllProjectPaths(): string[] {
+    const paths: string[] = [];
+    for (const p of this.store.getProjects()) {
+      paths.push(p.path);
+      if (p.worktrees) {
+        for (const w of p.worktrees) {
+          paths.push(w.path);
+        }
+      }
+    }
+    return paths;
+  }
 
   /**
    * Get permanently ignored paths
@@ -133,7 +151,7 @@ export class SuggestionService {
     // The metadata key list catches paths the user has tagged that aren't in
     // the current scan roots — under the "tag = marked" model they should be
     // treated as known and never re-suggested.
-    const scannedPaths = this.getProjectPaths?.() ?? [];
+    const scannedPaths = this.getAllProjectPaths();
     const taggedPaths = this.metadataService.getTaggedPaths();
     const allKnownPaths = createNormalizedPathSet([
       ...savedProjects.map((p) => p.path),
@@ -217,7 +235,7 @@ export class SuggestionService {
     if (this.savedProjectsService.isMarked(entry.path, this.metadataService)) {
       return;
     }
-    const scannedPathSet = createNormalizedPathSet(this.getProjectPaths?.() ?? []);
+    const scannedPathSet = createNormalizedPathSet(this.getAllProjectPaths());
     if (normalizedSetHas(scannedPathSet, entry.path)) {
       return;
     }
@@ -239,7 +257,7 @@ export class SuggestionService {
         // Clean up any postponed entry
         this.unpostponePath(entry.path);
         // Refresh tree view
-        vscode.commands.executeCommand("projectory.refreshProjects");
+        void this.store.refresh();
         break;
       case "Later":
         this.postponeSuggestion(entry.path);

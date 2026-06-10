@@ -54,7 +54,7 @@ export function registerTagCommands(ctx: CommandContext): CommandDisposable[] {
 			if (pickedPriority) {
 				const priority = parseInt(pickedPriority.label.replace('Level ', ''), 10);
 				await ctx.tagService.createTag(name.trim(), priority);
-				ctx.projectsTreeProvider.fireChange();
+				ctx.store.emitChange({ kind: 'reset' });
 			}
 		}
 	);
@@ -80,7 +80,7 @@ export function registerTagCommands(ctx: CommandContext): CommandDisposable[] {
 			if (newName && newName.trim() !== oldName) {
 				const trimmedNewName = await ctx.tagService.renameTag(oldName, newName.trim());
 				ctx.metadataService.renameTagInAll(oldName, trimmedNewName);
-				await ctx.projectsTreeProvider.refresh();
+				await ctx.store.refresh();
 			}
 		}
 	);
@@ -97,7 +97,7 @@ export function registerTagCommands(ctx: CommandContext): CommandDisposable[] {
 			if (confirm === 'Delete') {
 				ctx.metadataService.clearTagFromAll(item.tag.name);
 				await ctx.tagService.deleteTag(item.tag.name);
-				await ctx.projectsTreeProvider.refresh();
+				await ctx.store.refresh();
 			}
 		}
 	);
@@ -158,7 +158,7 @@ export function registerTagCommands(ctx: CommandContext): CommandDisposable[] {
 
 				const newTagNames = picked.filter((p) => !p.isCreateNew).map((p) => p.tagName);
 				ctx.metadataService.setTags(item.project.path, newTagNames);
-				ctx.projectsTreeProvider.fireChange();
+				ctx.store.emitChange({ kind: 'reset' });
 			};
 
 			await showTagPicker();
@@ -188,7 +188,7 @@ export function registerTagCommands(ctx: CommandContext): CommandDisposable[] {
 			if (picked) {
 				const priority = parseInt(picked.label.replace('Level ', ''), 10);
 				await ctx.tagService.updatePriority(item.tag.name, priority);
-				ctx.projectsTreeProvider.fireChange();
+				ctx.store.emitChange({ kind: 'reset' });
 			}
 		}
 	);

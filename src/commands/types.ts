@@ -6,11 +6,13 @@ import type { SavedProjectsService } from '../services/saved-projects-service';
 import type { TagService } from '../services/tag-service';
 import type { ProjectMetadataService } from '../services/project-metadata-service';
 import type { SuggestionService } from '../services/suggestion-service';
+import type { ProjectStore } from '../core/project-store';
 
 /**
  * Context object containing all services and providers needed by commands
  */
 export interface CommandContext {
+	store: ProjectStore;
 	projectsTreeProvider: ProjectsTreeProvider;
 	detailsWebviewProvider: DetailsWebviewProvider;
 	historyService: WorkspaceHistoryService;

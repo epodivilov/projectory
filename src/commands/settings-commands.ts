@@ -10,7 +10,7 @@ export function registerSettingsCommands(ctx: CommandContext): CommandDisposable
 		'projectory.setRootFolder',
 		async () => {
 			await selectRootFolder();
-			await ctx.projectsTreeProvider.refresh();
+			await ctx.store.refresh();
 		}
 	);
 
@@ -35,9 +35,9 @@ export function registerSettingsCommands(ctx: CommandContext): CommandDisposable
 			ctx.savedProjectsService.clearExcludedPaths();
 
 			// Refresh the project list
-			await ctx.projectsTreeProvider.refresh();
+			await ctx.store.refresh();
 
-			const projects = ctx.projectsTreeProvider.getProjects();
+			const projects = ctx.store.getProjects();
 			vscode.window.showInformationMessage(`Found ${projects.length} projects in root folder`);
 		}
 	);
@@ -61,7 +61,7 @@ export function registerSettingsCommands(ctx: CommandContext): CommandDisposable
 				ctx.suggestionService.resetAll();
 
 				// Refresh everything
-				await ctx.projectsTreeProvider.refresh();
+				await ctx.store.refresh();
 
 				vscode.window.showInformationMessage('All Projectory data has been reset. Projects will be rescanned from root folder.');
 			}
@@ -71,7 +71,7 @@ export function registerSettingsCommands(ctx: CommandContext): CommandDisposable
 	const refreshCommand = vscode.commands.registerCommand(
 		'projectory.refreshProjects',
 		async () => {
-			await ctx.projectsTreeProvider.refresh();
+			await ctx.store.refresh();
 		}
 	);
 

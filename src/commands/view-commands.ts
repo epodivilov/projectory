@@ -158,7 +158,7 @@ export function registerViewCommands(ctx: CommandContext): CommandDisposable[] {
 		async () => {
 			const config = getConfig();
 			const projects = ctx.historyService.sortProjects(
-				ctx.projectsTreeProvider.getProjects(),
+				ctx.store.getProjects(),
 				config.sortOrder,
 				config.sortDirection
 			);

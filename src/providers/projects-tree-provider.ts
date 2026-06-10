@@ -1,6 +1,5 @@
 import * as vscode from "vscode";
-import * as fs from "fs";
-import type { Project, ProjectTag, ProjectoryConfig, RecentFolder } from "../types";
+import type { Project, ProjectTag } from "../types";
 import {
   FolderTreeItem,
   ProjectsRootTreeItem,
@@ -16,11 +15,8 @@ import { SavedProjectsService } from "../services/saved-projects-service";
 import { TagService } from "../services/tag-service";
 import { ProjectMetadataService } from "../services/project-metadata-service";
 import { TreeStateService } from "../services/tree-state-service";
-import { ProjectsCacheService } from "../services/projects-cache-service";
-import { scanProjects } from "../services/project-scanner";
-import { initializeProjectTimestamps } from "../services/git-info-service";
 import { getConfig } from "../services/configuration-service";
-import { computeDisplayNames } from "../utils/path-utils";
+import type { ProjectStore, ProjectStoreChange } from "../core/project-store";
 
 const DRAG_MIME_TYPE = "application/vnd.code.tree.projectoryprojects";
 
@@ -95,12 +91,14 @@ export class ProjectTreeItem extends FolderTreeItem {
 
 /**
  * TreeDataProvider for the Projects view with drag & drop support
- * Uses priority-based tag grouping
+ * Uses priority-based tag grouping.
+ * Pure view — data is owned by ProjectStore; subscribe via onDidChange.
  */
 export class ProjectsTreeProvider
   implements
     vscode.TreeDataProvider<ProjectsTreeElement>,
-    vscode.TreeDragAndDropController<ProjectsTreeElement>
+    vscode.TreeDragAndDropController<ProjectsTreeElement>,
+    vscode.Disposable
 {
   // Drag and drop MIME types
   readonly dropMimeTypes = [DRAG_MIME_TYPE];
@@ -111,24 +109,89 @@ export class ProjectsTreeProvider
   >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  private _projects: Project[] = [];
-  private _recentFolders: RecentFolder[] = [];
-  private _isInitialized = false;
-  private _loadingPromise: Promise<void> | null = null;
+  // View-only state
   private _filterTagIds: string[] = [];
-  private _hasLoaded = false;
-  private _loadGeneration = 0;
+
+  // Cached root section instances for targeted re-fires
+  private _savedRoot?: ProjectsRootTreeItem;
+  private _scannedRoot?: ScannedRootTreeItem;
+  private _recentRoot?: RecentRootTreeItem;
+
+  private _storeSubscription: vscode.Disposable;
 
   constructor(
+    private readonly store: ProjectStore,
     private readonly historyService: WorkspaceHistoryService,
     private readonly savedProjectsService: SavedProjectsService,
     private readonly tagService: TagService,
     private readonly metadataService: ProjectMetadataService,
-    private readonly treeStateService: TreeStateService,
-    private readonly projectsCacheService: ProjectsCacheService
+    private readonly treeStateService: TreeStateService
   ) {
-    this._projects = [];
-    this._isInitialized = true;
+    this._storeSubscription = this.store.onDidChange((change) =>
+      this._onStoreChange(change)
+    );
+  }
+
+  dispose(): void {
+    this._storeSubscription.dispose();
+    this._onDidChangeTreeData.dispose();
+  }
+
+  /**
+   * Handle store data changes with targeted section-level fires.
+   *
+   * Count changes (add/remove project) always arrive as `reset` via store.refresh().
+   * `paths` is for in-place metadata edits where only affected sections need updating.
+   */
+  private _onStoreChange(change: ProjectStoreChange): void {
+    if (change.kind === "reset") {
+      // Clear cached roots so getChildren creates fresh instances next render
+      this._savedRoot = undefined;
+      this._scannedRoot = undefined;
+      this._recentRoot = undefined;
+      this._onDidChangeTreeData.fire(undefined);
+      return;
+    }
+
+    // kind === 'paths': fire only affected cached root sections
+    const { paths } = change;
+    const recentPaths = new Set(this.store.getRecentFolders().map((f) => f.path));
+
+    let affectsSaved = false;
+    let affectsScanned = false;
+    let affectsRecent = false;
+
+    for (const p of paths) {
+      if (recentPaths.has(p)) {
+        affectsRecent = true;
+      } else if (this.savedProjectsService.isMarked(p, this.metadataService)) {
+        affectsSaved = true;
+      } else {
+        affectsScanned = true;
+      }
+    }
+
+    if (affectsSaved) {
+      if (this._savedRoot) {
+        this._onDidChangeTreeData.fire(this._savedRoot);
+      } else {
+        this._onDidChangeTreeData.fire(undefined);
+      }
+    }
+    if (affectsScanned) {
+      if (this._scannedRoot) {
+        this._onDidChangeTreeData.fire(this._scannedRoot);
+      } else {
+        this._onDidChangeTreeData.fire(undefined);
+      }
+    }
+    if (affectsRecent) {
+      if (this._recentRoot) {
+        this._onDidChangeTreeData.fire(this._recentRoot);
+      } else {
+        this._onDidChangeTreeData.fire(undefined);
+      }
+    }
   }
 
   getTreeItem(element: ProjectsTreeElement): vscode.TreeItem {
@@ -166,9 +229,10 @@ export class ProjectsTreeProvider
   async getChildren(
     element?: ProjectsTreeElement
   ): Promise<ProjectsTreeElement[]> {
-    // Wait for initial load if not yet initialized
-    if (!this._isInitialized && this._loadingPromise) {
-      await this._loadingPromise;
+    // Wait for initial load if not yet complete
+    const loading = this.store.getLoadingPromise();
+    if (loading) {
+      await loading;
     }
 
     const config = getConfig();
@@ -183,20 +247,27 @@ export class ProjectsTreeProvider
 
       const saved = this.getSavedSubset();
       const scanned = this.getScannedSubset();
+      const recentFolders = this.store.getRecentFolders();
 
-      const items: ProjectsTreeElement[] = [
-        new ProjectsRootTreeItem(saved.length),
-      ];
+      // Construct and cache root instances for targeted re-fires
+      this._savedRoot = new ProjectsRootTreeItem(saved.length);
+      const items: ProjectsTreeElement[] = [this._savedRoot];
 
       // Add Scanned section if there are unmarked discovered projects.
       // Hidden when empty to avoid noise once the user has marked everything.
       if (scanned.length > 0) {
-        items.push(new ScannedRootTreeItem(scanned.length));
+        this._scannedRoot = new ScannedRootTreeItem(scanned.length);
+        items.push(this._scannedRoot);
+      } else {
+        this._scannedRoot = undefined;
       }
 
       // Add Recent section if there are recent folders
-      if (config.showRecentFolders && this._recentFolders.length > 0) {
-        items.push(new RecentRootTreeItem(this._recentFolders.length));
+      if (config.showRecentFolders && recentFolders.length > 0) {
+        this._recentRoot = new RecentRootTreeItem(recentFolders.length);
+        items.push(this._recentRoot);
+      } else {
+        this._recentRoot = undefined;
       }
 
       return items;
@@ -267,7 +338,7 @@ export class ProjectsTreeProvider
    */
   private getRecentFoldersList(): ProjectsTreeElement[] {
     const currentPath = this.getCurrentWorkspacePath();
-    return this._recentFolders.map(
+    return this.store.getRecentFolders().map(
       (folder) => new RecentFolderTreeItem(folder, folder.path === currentPath)
     );
   }
@@ -311,7 +382,7 @@ export class ProjectsTreeProvider
    * Saved subset = projects the user has marked (saved record or tags).
    */
   private getSavedSubset(): Project[] {
-    return this._projects.filter((p) =>
+    return this.store.getProjects().filter((p) =>
       this.savedProjectsService.isMarked(p.path, this.metadataService)
     );
   }
@@ -320,7 +391,7 @@ export class ProjectsTreeProvider
    * Scanned subset = projects with no markers — found by disk scan only.
    */
   private getScannedSubset(): Project[] {
-    return this._projects.filter(
+    return this.store.getProjects().filter(
       (p) => !this.savedProjectsService.isMarked(p.path, this.metadataService)
     );
   }
@@ -563,7 +634,7 @@ export class ProjectsTreeProvider
     const untaggedPaths = this.metadataService.getUntaggedProjects(savedPaths);
 
     const untaggedProjects = untaggedPaths
-      .map((path) => this.findProjectByPath(path))
+      .map((path) => this.store.findProjectByPath(path))
       .filter((p): p is Project => p !== undefined);
 
     // Sort according to current settings
@@ -660,18 +731,18 @@ export class ProjectsTreeProvider
     if (target instanceof ProjectsRootTreeItem) {
       // Drop on Saved root - save (no tags)
       markDropped();
-      await this.refresh();
+      await this.store.refresh();
     } else if (target instanceof TagTreeItem) {
       // Drop on tag - add tags (tag itself marks the project as Saved)
       markDropped(target.tagPath);
-      await this.refresh();
+      await this.store.refresh();
     } else if (target instanceof UntaggedTreeItem) {
       // Drop on Untagged - save and strip any existing tags
       markDropped();
       for (const path of paths) {
         this.metadataService.setTags(path, []);
       }
-      await this.refresh();
+      await this.store.refresh();
     }
   }
 
@@ -768,219 +839,7 @@ export class ProjectsTreeProvider
   }
 
   /**
-   * Refresh the projects list
-   */
-  async refresh(): Promise<void> {
-    if (this._loadingPromise) {
-      return this._loadingPromise;
-    }
-    this._loadingPromise = this.loadProjects();
-    try {
-      await this._loadingPromise;
-    } finally {
-      this._loadingPromise = null;
-      this._isInitialized = true;
-      this._onDidChangeTreeData.fire();
-    }
-  }
-
-  /**
-   * Load projects from scanner and saved projects.
-   *
-   * Paints immediately from data already in memory (saved projects + recent
-   * folders, both from globalState), then reconciles with a full disk scan.
-   * This keeps the panel responsive on activation instead of blocking on the
-   * scan — see seedFromCache for the instant part.
-   */
-  private async loadProjects(): Promise<void> {
-    const generation = ++this._loadGeneration;
-    const config = getConfig();
-
-    // 1. Cold start only: paint the user's known (saved) projects right away so
-    //    the panel isn't blank/spinning while the first scan runs. On later
-    //    refreshes the already-scanned list stays visible to avoid flicker.
-    if (!this._hasLoaded) {
-      this.seedFromCache(config);
-      this._onDidChangeTreeData.fire();
-    }
-
-    // 2. Reconcile with a full filesystem scan, then repaint.
-    const scannedProjects = await scanProjects(config);
-
-    const excludedPaths = this.savedProjectsService.getExcludedPaths();
-    const filteredScanned = scannedProjects.filter(
-      (p) => !excludedPaths.includes(p.path)
-    );
-
-    const savedProjects = this.savedProjectsService.toProjects();
-
-    const scannedPaths = new Set(filteredScanned.map((p) => p.path));
-    const uniqueSavedCandidates = savedProjects.filter((p) => !scannedPaths.has(p.path));
-
-    const existsResults = await Promise.all(
-      uniqueSavedCandidates.map((p) =>
-        fs.promises.access(p.path).then(() => true).catch(() => false)
-      )
-    );
-    const uniqueSaved = uniqueSavedCandidates.filter((_, i) => existsResults[i]);
-
-    this._projects = [...filteredScanned, ...uniqueSaved];
-
-    // Persist the scan result so the next cold start can paint the full tree
-    // from globalState instead of waiting for another scan. Fire-and-forget —
-    // the write is asynchronous and must not block the repaint below.
-    void this.projectsCacheService.save(
-      this._projects.map((p) => ({
-        path: p.path,
-        name: p.name,
-        isGitRepo: p.isGitRepo ?? false,
-        hasWorktrees: p.hasWorktrees ?? false,
-      }))
-    );
-
-    // Load recent folders before renaming projects: getRecentFolders relies on
-    // the raw folder-name (basename) of projects for its .worktrees heuristic.
-    if (config.showRecentFolders) {
-      this._recentFolders = this.historyService.getRecentFolders(
-        this._projects
-      );
-    } else {
-      this._recentFolders = [];
-    }
-
-    // Disambiguate display names so projects sharing a last path segment
-    // (e.g. a "{project}/root" worktree layout) don't all show the same name.
-    // A manually saved displayName still wins at render time.
-    this.applyDisplayNames(this._projects);
-    this.applyDisplayNames(this._recentFolders);
-
-    this._hasLoaded = true;
-
-    // Initialize timestamps for new projects in background (non-blocking)
-    initializeProjectTimestamps(this._projects, this.historyService)
-      .then((count) => {
-        if (count > 0) {
-          this._onDidChangeTreeData.fire();
-        }
-      })
-      .catch((err) => {
-        console.error("Error initializing project timestamps:", err);
-      });
-
-    // Remove stale recent-folder entries from history in background (non-blocking)
-    if (config.showRecentFolders) {
-      const foldersToCheck = [...this._recentFolders];
-      Promise.all(
-        foldersToCheck.map((folder) =>
-          fs.promises.access(folder.path).then(() => true).catch(() => false)
-        )
-      )
-        .then((existsResults) => {
-          const missing = foldersToCheck.filter((_, i) => !existsResults[i]);
-          if (missing.length > 0) {
-            for (const folder of missing) {
-              this.historyService.removeFromHistory(folder.path);
-            }
-            if (generation !== this._loadGeneration) {
-              return;
-            }
-            this._recentFolders = this.historyService.getRecentFolders(this._projects);
-            this.applyDisplayNames(this._recentFolders);
-            this.fireChange();
-          }
-        })
-        .catch((err) => {
-          console.error("Error cleaning up recent folders:", err);
-        });
-    }
-  }
-
-  /**
-   * Seed the in-memory list from data available synchronously so the tree can
-   * paint before the disk scan finishes. Prefers the persisted last-scan cache
-   * (full project list with group/tag info filled in from sync services) and
-   * falls back to the explicitly-saved list on the very first run when no
-   * cache exists yet.
-   */
-  private seedFromCache(config: ProjectoryConfig): void {
-    const cached = this.projectsCacheService.get();
-
-    if (cached.length > 0) {
-      // Hydrate cached entries into Project shape. `uri` is rebuilt from
-      // `path`; `worktrees` stays undefined and is filled by the background
-      // scan in loadProjects.
-      this._projects = cached.map((c) => ({
-        name: c.name,
-        path: c.path,
-        uri: vscode.Uri.file(c.path),
-        isGitRepo: c.isGitRepo,
-        hasWorktrees: c.hasWorktrees,
-      }));
-    } else {
-      // First run after install: no cache yet. Fall back to whatever the user
-      // has explicitly saved so the panel isn't completely empty.
-      this._projects = this.savedProjectsService.toProjects();
-    }
-
-    if (config.showRecentFolders) {
-      this._recentFolders = this.historyService.getRecentFolders(
-        this._projects
-      );
-    } else {
-      this._recentFolders = [];
-    }
-
-    this.applyDisplayNames(this._projects);
-    this.applyDisplayNames(this._recentFolders);
-  }
-
-  /**
-   * Overwrite each item's name with a disambiguated display name derived from
-   * its path. Only collisions on the last segment grow a parent prefix.
-   */
-  private applyDisplayNames(items: { name: string; path: string }[]): void {
-    if (items.length === 0) {
-      return;
-    }
-    const names = computeDisplayNames(items.map((item) => item.path));
-    for (const item of items) {
-      const name = names.get(item.path);
-      if (name) {
-        item.name = name;
-      }
-    }
-  }
-
-  /**
-   * Get current projects
-   */
-  getProjects(): Project[] {
-    return this._projects;
-  }
-
-  /**
-   * Find project by path
-   */
-  findProjectByPath(path: string): Project | undefined {
-    return this._projects.find((p) => p.path === path);
-  }
-
-  /**
-   * Find recent folder by path
-   */
-  findFolderByPath(folderPath: string): RecentFolder | undefined {
-    return this._recentFolders.find((f) => f.path === folderPath);
-  }
-
-  /**
-   * Get recent folders
-   */
-  getRecentFolders(): RecentFolder[] {
-    return this._recentFolders;
-  }
-
-  /**
-   * Fire change event to refresh UI
+   * Fire change event to refresh UI (view-only repaints: selection, filter, view mode, grouping).
    */
   fireChange(): void {
     this._onDidChangeTreeData.fire();
