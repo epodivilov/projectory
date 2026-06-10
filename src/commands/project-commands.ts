@@ -35,7 +35,6 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 			if (selectedPath === itemPath) {
 				ctx.setSelectedPath(null);
 				ctx.detailsWebviewProvider.clearProject();
-				ctx.projectsTreeProvider.fireChange();
 			} else {
 				ctx.setSelectedPath(itemPath);
 				const project = ctx.store.findProjectByPath(itemPath);
@@ -55,7 +54,6 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 			if (selectedPath === itemPath) {
 				ctx.setSelectedPath(null);
 				ctx.detailsWebviewProvider.clearProject();
-				ctx.projectsTreeProvider.fireChange();
 			} else {
 				ctx.setSelectedPath(itemPath);
 				const folder = ctx.store.findFolderByPath(itemPath);
@@ -75,7 +73,6 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 			if (selectedPath === itemPath) {
 				ctx.setSelectedPath(null);
 				ctx.detailsWebviewProvider.clearProject();
-				ctx.projectsTreeProvider.fireChange();
 			} else {
 				ctx.setSelectedPath(itemPath);
 				const parentProject = ctx.store.findProjectByPath(arg.parentPath);
@@ -101,7 +98,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 			// Without this a tagged-but-unsaved project would immediately reappear
 			// in Saved on the next render.
 			ctx.savedProjectsService.clearAllMarkers(item.project.path, ctx.metadataService);
-			await ctx.store.refresh();
+			await ctx.store.reconcileMarkers();
 			ctx.setSelectedPath(null);
 			ctx.detailsWebviewProvider.clearProject();
 		}
@@ -112,7 +109,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 		async (item: ProjectTreeItem) => {
 			// Hide from future scans without touching markers (there are none).
 			ctx.savedProjectsService.excludePath(item.project.path);
-			await ctx.store.refresh();
+			await ctx.store.reconcileMarkers();
 			ctx.setSelectedPath(null);
 			ctx.detailsWebviewProvider.clearProject();
 		}
@@ -122,7 +119,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 		'projectory.saveToProjects',
 		async (item: RecentFolderTreeItem) => {
 			ctx.savedProjectsService.saveProject(item.folder.path);
-			await ctx.store.refresh();
+			await ctx.store.reconcileMarkers();
 		}
 	);
 
@@ -130,7 +127,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 		'projectory.removeFromRecent',
 		async (item: RecentFolderTreeItem) => {
 			ctx.historyService.removeFromHistory(item.folder.path);
-			await ctx.store.refresh();
+			await ctx.store.reconcileMarkers();
 		}
 	);
 
@@ -142,7 +139,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 			// inside a scan root, which is harmless.
 			ctx.historyService.removeFromHistory(item.folder.path);
 			ctx.savedProjectsService.excludePath(item.folder.path);
-			await ctx.store.refresh();
+			await ctx.store.reconcileMarkers();
 		}
 	);
 
@@ -158,7 +155,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 				return;
 			}
 			ctx.historyService.clearHistory();
-			await ctx.store.refresh();
+			await ctx.store.reconcileMarkers();
 		}
 	);
 
@@ -179,7 +176,7 @@ export function registerProjectCommands(ctx: CommandContext): CommandDisposable[
 			ctx.savedProjectsService.updateProject(item.project.path, {
 				displayName: newName.trim()
 			});
-			await ctx.store.refresh();
+			await ctx.store.reconcileMarkers();
 			await ctx.detailsWebviewProvider.refreshCurrentItem();
 		}
 	);

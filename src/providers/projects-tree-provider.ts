@@ -730,18 +730,18 @@ export class ProjectsTreeProvider
     if (target instanceof ProjectsRootTreeItem) {
       // Drop on Saved root - save (no tags)
       markDropped();
-      await this.store.refresh();
+      await this.store.reconcileMarkers();
     } else if (target instanceof TagTreeItem) {
       // Drop on tag - add tags (tag itself marks the project as Saved)
       markDropped(target.tagPath);
-      await this.store.refresh();
+      await this.store.reconcileMarkers();
     } else if (target instanceof UntaggedTreeItem) {
       // Drop on Untagged - save and strip any existing tags
       markDropped();
       for (const path of paths) {
         this.metadataService.setTags(path, []);
       }
-      await this.store.refresh();
+      await this.store.reconcileMarkers();
     }
   }
 

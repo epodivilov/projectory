@@ -257,7 +257,7 @@ export class SuggestionService implements vscode.Disposable {
         // Clean up any postponed entry
         this.unpostponePath(entry.path);
         // Refresh tree view
-        void this.store.refresh();
+        void this.store.reconcileMarkers();
         break;
       case "Later":
         this.postponeSuggestion(entry.path);

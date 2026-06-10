@@ -21,6 +21,10 @@ export class ProjectStore implements vscode.Disposable {
   private _recentFolders: RecentFolder[] = [];
   private _loadingPromise: Promise<void> | null = null;
   private _hasLoaded = false;
+  // Raw result of the last disk scan, before exclusion filtering. Lets
+  // marker-only mutations (save/remove/tag/exclude) re-merge in memory
+  // without touching the disk or spawning git.
+  private _lastScanned: Project[] = [];
   private _loadGeneration = 0;
   private _scanTokenSource: vscode.CancellationTokenSource | null = null;
   private _disposed = false;
@@ -102,6 +106,60 @@ export class ProjectStore implements vscode.Disposable {
     return this._startLoad();
   }
 
+  /**
+   * Re-merge the project list from the last scan result and the CURRENT
+   * markers (saved records, tags, excluded paths) — no disk scan, no git.
+   * This is what save/remove/tag/exclude mutations call: the set of folders
+   * on disk did not change, only their classification did.
+   */
+  async reconcileMarkers(): Promise<void> {
+    if (!this._hasLoaded) {
+      // First load hasn't completed yet — fall back to a full load.
+      return this.refresh();
+    }
+
+    const excludedPaths = this.savedProjectsService.getExcludedPaths();
+    const savedProjects = this.savedProjectsService.toProjects();
+    const { filteredScanned, uniqueSavedCandidates } = partitionScannedSaved(
+      this._lastScanned,
+      savedProjects,
+      excludedPaths
+    );
+
+    const existsResults = await Promise.all(
+      uniqueSavedCandidates.map((p) =>
+        fs.promises.access(p.path).then(() => true).catch(() => false)
+      )
+    );
+    const uniqueSaved = uniqueSavedCandidates.filter((_, i) => existsResults[i]);
+
+    if (this._disposed) {
+      return;
+    }
+
+    this._projects = [...filteredScanned, ...uniqueSaved];
+
+    const config = getConfig();
+    if (config.showRecentFolders) {
+      this._recentFolders = this.historyService.getRecentFolders(this._projects);
+    } else {
+      this._recentFolders = [];
+    }
+
+    this._applyDisplayNames(this._projects);
+    this._applyDisplayNames(this._recentFolders);
+
+    void this.projectsCacheService.save(
+      this._projects.map((p) => ({
+        path: p.path,
+        name: p.name,
+        isGitRepo: p.isGitRepo ?? false,
+        hasWorktrees: p.hasWorktrees ?? false,
+      }))
+    );
+    this._onDidChange.fire({ kind: "reset" });
+  }
+
   private async _startLoad(): Promise<void> {
     this._scanTokenSource = new vscode.CancellationTokenSource();
     const token = this._scanTokenSource.token;
@@ -152,6 +210,10 @@ export class ProjectStore implements vscode.Disposable {
     if (token.isCancellationRequested) {
       return;
     }
+
+    // Keep the raw scan result so marker-only mutations can re-merge
+    // in memory via reconcileMarkers() without rescanning the disk.
+    this._lastScanned = scannedProjects;
 
     const excludedPaths = this.savedProjectsService.getExcludedPaths();
     const savedProjects = this.savedProjectsService.toProjects();
