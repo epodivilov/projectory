@@ -32,6 +32,34 @@ export class TreeStateService {
 		this.state.update(TREE_EXPAND_STATE_KEY, stored);
 	}
 
+	/**
+	 * Remove stale project/worktree ids from the stored state.
+	 * Any key not starting with 'project-' or 'worktree-' is kept unconditionally
+	 * (tag/root ids are bounded and stable). project-/worktree- keys are kept only
+	 * if present in currentIds.
+	 */
+	prune(currentIds: Set<string>): void {
+		const stored = this.getStored();
+		const pruned: Record<string, boolean> = {};
+		let dropped = false;
+
+		for (const [key, value] of Object.entries(stored)) {
+			if (key.startsWith('project-') || key.startsWith('worktree-')) {
+				if (currentIds.has(key)) {
+					pruned[key] = value;
+				} else {
+					dropped = true;
+				}
+			} else {
+				pruned[key] = value;
+			}
+		}
+
+		if (dropped) {
+			this.state.update(TREE_EXPAND_STATE_KEY, pruned);
+		}
+	}
+
 	private getStored(): Record<string, boolean> {
 		return this.state.get(TREE_EXPAND_STATE_KEY, {});
 	}

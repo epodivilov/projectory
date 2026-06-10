@@ -2,6 +2,20 @@ import * as vscode from "vscode";
 import type { ProjectTag, Worktree } from "../types";
 
 /**
+ * Stable tree item id for a project path.
+ */
+export function projectId(path: string): string {
+  return `project-${Buffer.from(path).toString("base64")}`;
+}
+
+/**
+ * Stable tree item id for a worktree path.
+ */
+export function worktreeId(path: string): string {
+  return `worktree-${Buffer.from(path).toString("base64")}`;
+}
+
+/**
  * Base tree item for folder-based items (Projects and Recent Folders)
  */
 export class FolderTreeItem extends vscode.TreeItem {
@@ -16,14 +30,9 @@ export class FolderTreeItem extends vscode.TreeItem {
     super(name, vscode.TreeItemCollapsibleState.None);
 
     // Stable ID - encode path to avoid special characters
-    this.id = `project-${Buffer.from(folderPath).toString("base64")}`;
+    this.id = projectId(folderPath);
     this.contextValue = contextValue;
     this.description = isCurrent ? "(current)" : undefined;
-
-    // Unified tooltip - only name and path
-    this.tooltip = new vscode.MarkdownString();
-    this.tooltip.appendMarkdown(`**${name}**\n\n`);
-    this.tooltip.appendMarkdown(`\`${folderPath}\``);
 
     this.iconPath = new vscode.ThemeIcon("folder");
 
@@ -42,7 +51,7 @@ export class TagTreeItem extends vscode.TreeItem {
     public readonly tag: ProjectTag,
     public readonly displayName: string,
     public readonly tagPath: string[],
-    projectCount: number,
+    public readonly projectCount: number,
     hasChildren: boolean
   ) {
     // Expanded if has children, collapsed if only projects
@@ -58,13 +67,6 @@ export class TagTreeItem extends vscode.TreeItem {
     this.contextValue = "projectTag";
     this.description = `${projectCount}`;
 
-    this.tooltip = new vscode.MarkdownString();
-    this.tooltip.appendMarkdown(`**${tag.name}**\n\n`);
-    this.tooltip.appendMarkdown(`Priority: ${tag.priority}\n\n`);
-    this.tooltip.appendMarkdown(
-      `${projectCount} project${projectCount !== 1 ? "s" : ""}`
-    );
-
     this.iconPath = new vscode.ThemeIcon("tag");
   }
 }
@@ -73,7 +75,7 @@ export class TagTreeItem extends vscode.TreeItem {
  * Tree item representing the "Untagged" virtual group
  */
 export class UntaggedTreeItem extends vscode.TreeItem {
-  constructor(projectCount: number) {
+  constructor(public readonly projectCount: number) {
     // Expanded by default
     super("Untagged", vscode.TreeItemCollapsibleState.Expanded);
 
@@ -81,12 +83,6 @@ export class UntaggedTreeItem extends vscode.TreeItem {
     this.id = "untagged";
     this.contextValue = "untaggedGroup";
     this.description = `${projectCount}`;
-
-    this.tooltip = new vscode.MarkdownString();
-    this.tooltip.appendMarkdown("**Untagged Projects**\n\n");
-    this.tooltip.appendMarkdown(
-      `${projectCount} project${projectCount !== 1 ? "s" : ""} without tags`
-    );
 
     // Distinct icon for untagged group
     this.iconPath = new vscode.ThemeIcon("archive");
@@ -98,19 +94,12 @@ export class UntaggedTreeItem extends vscode.TreeItem {
  * Used to avoid VS Code's special handling of root-level items
  */
 export class ProjectsRootTreeItem extends vscode.TreeItem {
-  constructor(projectCount: number) {
+  constructor(public readonly projectCount: number) {
     super("Saved", vscode.TreeItemCollapsibleState.Expanded);
 
     this.id = "projects-root";
     this.contextValue = "projectsRoot";
     this.description = `${projectCount}`;
-
-    this.tooltip = new vscode.MarkdownString();
-    this.tooltip.appendMarkdown("**Saved Projects**\n\n");
-    this.tooltip.appendMarkdown(
-      `${projectCount} project${projectCount !== 1 ? "s" : ""} you've explicitly saved or tagged`
-    );
-    this.tooltip.appendMarkdown("\n\n*Drag a Scanned project here to save it*");
 
     this.iconPath = new vscode.ThemeIcon("folder-library");
   }
@@ -122,19 +111,12 @@ export class ProjectsRootTreeItem extends vscode.TreeItem {
  * hasn't expressed intent to keep them yet.
  */
 export class ScannedRootTreeItem extends vscode.TreeItem {
-  constructor(projectCount: number) {
+  constructor(public readonly projectCount: number) {
     super("Scanned", vscode.TreeItemCollapsibleState.Collapsed);
 
     this.id = "scanned-root";
     this.contextValue = "scannedRoot";
     this.description = `${projectCount}`;
-
-    this.tooltip = new vscode.MarkdownString();
-    this.tooltip.appendMarkdown("**Scanned Projects**\n\n");
-    this.tooltip.appendMarkdown(
-      `${projectCount} project${projectCount !== 1 ? "s" : ""} found by scanning the root folder`
-    );
-    this.tooltip.appendMarkdown("\n\n*Tag or rename one to move it to Saved*");
 
     this.iconPath = new vscode.ThemeIcon("search");
   }
@@ -144,19 +126,12 @@ export class ScannedRootTreeItem extends vscode.TreeItem {
  * Root container tree item for recent folders
  */
 export class RecentRootTreeItem extends vscode.TreeItem {
-  constructor(folderCount: number) {
+  constructor(public readonly folderCount: number) {
     super("Recent", vscode.TreeItemCollapsibleState.Collapsed);
 
     this.id = "recent-root";
     this.contextValue = "recentRoot";
     this.description = `${folderCount}`;
-
-    this.tooltip = new vscode.MarkdownString();
-    this.tooltip.appendMarkdown("**Recent Folders**\n\n");
-    this.tooltip.appendMarkdown(
-      `${folderCount} folder${folderCount !== 1 ? "s" : ""} not yet saved`
-    );
-    this.tooltip.appendMarkdown("\n\n*Drag to Saved or a tag to save*");
 
     this.iconPath = new vscode.ThemeIcon("history");
   }
@@ -190,15 +165,9 @@ export class WorktreeTreeItem extends vscode.TreeItem {
     super(worktree.name, vscode.TreeItemCollapsibleState.None);
 
     // Stable ID
-    this.id = `worktree-${Buffer.from(worktree.path).toString("base64")}`;
+    this.id = worktreeId(worktree.path);
     this.contextValue = "worktree";
     this.description = isCurrent ? "(current)" : worktree.branch;
-
-    // Tooltip with branch and path info
-    this.tooltip = new vscode.MarkdownString();
-    this.tooltip.appendMarkdown(`**${worktree.name}**\n\n`);
-    this.tooltip.appendMarkdown(`Branch: \`${worktree.branch}\`\n\n`);
-    this.tooltip.appendMarkdown(`Path: \`${worktree.path}\``);
 
     // Icon: file-directory for root, git-branch for linked worktrees
     this.iconPath = new vscode.ThemeIcon(

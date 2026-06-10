@@ -9,6 +9,8 @@ import {
   TagTreeItem,
   UntaggedTreeItem,
   WorktreeTreeItem,
+  projectId,
+  worktreeId,
 } from "./base-tree-item";
 import { WorkspaceHistoryService } from "../services/workspace-history-service";
 import { SavedProjectsService } from "../services/saved-projects-service";
@@ -43,8 +45,8 @@ export class ProjectTreeItem extends FolderTreeItem {
     isCurrent: boolean,
     tagDescription?: string,
     isWorktreeCurrent?: boolean,
-    displayName?: string,
-    projectDescription?: string
+    public readonly displayName?: string,
+    public readonly projectDescription?: string
   ) {
     super(
       displayName ?? project.name,
@@ -78,14 +80,6 @@ export class ProjectTreeItem extends FolderTreeItem {
     } else if (isWorktreeCurrent && !isCurrent) {
       this.description = "(worktree open)";
     }
-
-    // Override tooltip with displayName, description and path
-    this.tooltip = new vscode.MarkdownString();
-    this.tooltip.appendMarkdown(`**${displayName ?? project.name}**\n\n`);
-    if (projectDescription) {
-      this.tooltip.appendMarkdown(`${projectDescription}\n\n`);
-    }
-    this.tooltip.appendMarkdown(`\`${project.path}\``);
   }
 }
 
@@ -145,6 +139,23 @@ export class ProjectsTreeProvider
    */
   private _onStoreChange(change: ProjectStoreChange): void {
     if (change.kind === "reset") {
+      // Prune stale project/worktree ids from persisted expand state.
+      // Skip the cold-start seed reset: the seed may only contain saved
+      // projects, so pruning against it would wipe expand states for
+      // scanned projects that haven't been loaded yet.
+      if (this.store.hasLoaded()) {
+        const currentIds = new Set<string>();
+        for (const project of this.store.getProjects()) {
+          currentIds.add(projectId(project.path));
+          if (project.worktrees) {
+            for (const w of project.worktrees) {
+              currentIds.add(worktreeId(w.path));
+            }
+          }
+        }
+        this.treeStateService.prune(currentIds);
+      }
+
       // Clear cached roots so getChildren creates fresh instances next render
       this._savedRoot = undefined;
       this._scannedRoot = undefined;
@@ -328,6 +339,68 @@ export class ProjectsTreeProvider
     _element: ProjectsTreeElement
   ): vscode.ProviderResult<ProjectsTreeElement> {
     return undefined;
+  }
+
+  /**
+   * Build tooltip on demand (hover) rather than eagerly in constructors.
+   */
+  resolveTreeItem(
+    item: vscode.TreeItem,
+    element: ProjectsTreeElement,
+    _token: vscode.CancellationToken
+  ): vscode.ProviderResult<vscode.TreeItem> {
+    const tooltip = new vscode.MarkdownString();
+
+    if (element instanceof ProjectTreeItem) {
+      const name = element.displayName ?? element.project.name;
+      tooltip.appendMarkdown(`**${name}**\n\n`);
+      if (element.projectDescription) {
+        tooltip.appendMarkdown(`${element.projectDescription}\n\n`);
+      }
+      tooltip.appendMarkdown(`\`${element.project.path}\``);
+    } else if (element instanceof WorktreeTreeItem) {
+      tooltip.appendMarkdown(`**${element.worktree.name}**\n\n`);
+      tooltip.appendMarkdown(`Branch: \`${element.worktree.branch}\`\n\n`);
+      tooltip.appendMarkdown(`Path: \`${element.worktree.path}\``);
+    } else if (element instanceof TagTreeItem) {
+      tooltip.appendMarkdown(`**${element.tag.name}**\n\n`);
+      tooltip.appendMarkdown(`Priority: ${element.tag.priority}\n\n`);
+      tooltip.appendMarkdown(
+        `${element.projectCount} project${element.projectCount !== 1 ? "s" : ""}`
+      );
+    } else if (element instanceof UntaggedTreeItem) {
+      tooltip.appendMarkdown("**Untagged Projects**\n\n");
+      tooltip.appendMarkdown(
+        `${element.projectCount} project${element.projectCount !== 1 ? "s" : ""} without tags`
+      );
+    } else if (element instanceof ProjectsRootTreeItem) {
+      tooltip.appendMarkdown("**Saved Projects**\n\n");
+      tooltip.appendMarkdown(
+        `${element.projectCount} project${element.projectCount !== 1 ? "s" : ""} you've explicitly saved or tagged`
+      );
+      tooltip.appendMarkdown("\n\n*Drag a Scanned project here to save it*");
+    } else if (element instanceof ScannedRootTreeItem) {
+      tooltip.appendMarkdown("**Scanned Projects**\n\n");
+      tooltip.appendMarkdown(
+        `${element.projectCount} project${element.projectCount !== 1 ? "s" : ""} found by scanning the root folder`
+      );
+      tooltip.appendMarkdown("\n\n*Tag or rename one to move it to Saved*");
+    } else if (element instanceof RecentRootTreeItem) {
+      tooltip.appendMarkdown("**Recent Folders**\n\n");
+      tooltip.appendMarkdown(
+        `${element.folderCount} folder${element.folderCount !== 1 ? "s" : ""} not yet saved`
+      );
+      tooltip.appendMarkdown("\n\n*Drag to Saved or a tag to save*");
+    } else if (element instanceof FolderTreeItem) {
+      // Covers RecentFolderTreeItem (and any other FolderTreeItem subclasses not already handled)
+      tooltip.appendMarkdown(`**${element.name}**\n\n`);
+      tooltip.appendMarkdown(`\`${element.folderPath}\``);
+    } else {
+      return item;
+    }
+
+    item.tooltip = tooltip;
+    return item;
   }
 
   // ==================== View Mode Methods ====================

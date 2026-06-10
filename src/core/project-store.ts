@@ -71,6 +71,14 @@ export class ProjectStore implements vscode.Disposable {
     return this._initPromise;
   }
 
+  /**
+   * Returns true once the first full disk scan has completed.
+   * Used to guard operations that must not run against a partial seed.
+   */
+  hasLoaded(): boolean {
+    return this._hasLoaded;
+  }
+
   emitChange(change: ProjectStoreChange): void {
     if (this._disposed) {
       return;
