@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { StateStore } from "./core/state-store";
 import { ProjectStore } from "./core/project-store";
+import { ScanWatcher } from "./core/scan-watcher";
 import { WorkspaceHistoryService } from "./services/workspace-history-service";
 import { SavedProjectsService } from "./services/saved-projects-service";
 import { TagService } from "./services/tag-service";
@@ -23,6 +24,7 @@ export class Container implements vscode.Disposable {
   private _treeStateService?: TreeStateService;
   private _projectsCacheService?: ProjectsCacheService;
   private _store?: ProjectStore;
+  private _scanWatcher?: ScanWatcher;
   private _projectsTreeProvider?: ProjectsTreeProvider;
   private _detailsWebviewProvider?: DetailsWebviewProvider;
   private _suggestionService?: SuggestionService;
@@ -89,6 +91,13 @@ export class Container implements vscode.Disposable {
     return this._store;
   }
 
+  get scanWatcher(): ScanWatcher {
+    if (!this._scanWatcher) {
+      this._scanWatcher = new ScanWatcher(this.store);
+    }
+    return this._scanWatcher;
+  }
+
   get projectsTreeProvider(): ProjectsTreeProvider {
     if (!this._projectsTreeProvider) {
       this._projectsTreeProvider = new ProjectsTreeProvider(
@@ -128,8 +137,10 @@ export class Container implements vscode.Disposable {
   }
 
   dispose(): void {
+    this._scanWatcher?.dispose();
     this._store?.dispose();
     this._projectsTreeProvider?.dispose();
+    this._detailsWebviewProvider?.dispose();
     this._suggestionService?.dispose();
   }
 

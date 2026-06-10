@@ -38,6 +38,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		console.error('Error loading projects on activation:', err);
 	});
 
+	c.scanWatcher.start();
+
 	// Folder suggestions (delayed to avoid startup overhead, but after projects are loaded)
 	suggestionTimeoutId = setTimeout(async () => {
 		try {
@@ -93,6 +95,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		await updateViewContextOnConfigChange();
 		if (SCAN_SETTINGS.some((key) => e.affectsConfiguration(`projectory.${key}`))) {
 			await c.store.rescan();
+			if (e.affectsConfiguration('projectory.rootFolder')) {
+				c.scanWatcher.reconfigureRoot();
+			}
 		} else {
 			c.store.emitChange({ kind: 'reset' });
 		}

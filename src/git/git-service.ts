@@ -32,6 +32,15 @@ function releaseSlot(): void {
 	}
 }
 
+export function invalidateCache(cwd: string): void {
+	const prefix = cwd + '\0';
+	for (const key of cache.keys()) {
+		if (key.startsWith(prefix)) {
+			cache.delete(key);
+		}
+	}
+}
+
 export function runGit(args: string[], cwd: string, token?: vscode.CancellationToken): Promise<string> {
 	// Bypass cache when a CancellationToken is provided: a cancellable process
 	// must not be shared across callers since killing it would affect all of them.
