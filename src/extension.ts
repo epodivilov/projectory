@@ -85,10 +85,17 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Register all commands
 	const commandDisposables = registerAllCommands(commandContext);
 
-	// Listen for configuration changes
-	const configChangeListener = onConfigChange(async () => {
+	// Listen for configuration changes. Only settings that affect what the
+	// disk scan finds warrant a rescan; everything else (sort, view mode,
+	// grouping, tags) just needs a repaint from in-memory data.
+	const SCAN_SETTINGS = ['rootFolder', 'excludePatterns', 'maxScanDepth', 'showRecentFolders'];
+	const configChangeListener = onConfigChange(async (e) => {
 		await updateViewContextOnConfigChange();
-		await c.store.refresh();
+		if (SCAN_SETTINGS.some((key) => e.affectsConfiguration(`projectory.${key}`))) {
+			await c.store.rescan();
+		} else {
+			c.store.emitChange({ kind: 'reset' });
+		}
 	});
 
 	// Update when workspace changes

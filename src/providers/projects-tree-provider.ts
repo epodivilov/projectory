@@ -229,11 +229,10 @@ export class ProjectsTreeProvider
   async getChildren(
     element?: ProjectsTreeElement
   ): Promise<ProjectsTreeElement[]> {
-    // Wait for initial load if not yet complete
-    const loading = this.store.getLoadingPromise();
-    if (loading) {
-      await loading;
-    }
+    // Wait only for the very first seed/load. In-flight rescans must never
+    // block rendering — the tree paints from memory and the store fires a
+    // reset when fresh data lands.
+    await this.store.whenInitialized();
 
     const config = getConfig();
 

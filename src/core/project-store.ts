@@ -25,6 +25,13 @@ export class ProjectStore implements vscode.Disposable {
   private _scanTokenSource: vscode.CancellationTokenSource | null = null;
   private _disposed = false;
 
+  // Resolved once, after the first seed/load. getChildren waits on this and
+  // nothing else — the tree must never block on an in-flight rescan.
+  private _initResolve: (() => void) | null = null;
+  private readonly _initPromise = new Promise<void>((resolve) => {
+    this._initResolve = resolve;
+  });
+
   private _onDidChange = new vscode.EventEmitter<ProjectStoreChange>();
   readonly onDidChange = this._onDidChange.event;
 
@@ -52,8 +59,12 @@ export class ProjectStore implements vscode.Disposable {
     return this._recentFolders.find((f) => f.path === folderPath);
   }
 
-  getLoadingPromise(): Promise<void> | null {
-    return this._loadingPromise;
+  /**
+   * Resolves after the first seed/load. Already-resolved afterwards, so
+   * awaiting it on every getChildren is effectively free.
+   */
+  whenInitialized(): Promise<void> {
+    return this._initPromise;
   }
 
   emitChange(change: ProjectStoreChange): void {
@@ -66,22 +77,40 @@ export class ProjectStore implements vscode.Disposable {
   // ==================== Refresh ====================
 
   /**
-   * Cancel any in-progress scan and start a fresh one.
-   * Returns a promise that resolves when the new load completes.
+   * Reconcile with a disk scan. If a load is already in flight, join it
+   * instead of starting a competing scan — concurrent callers share one scan.
    */
-  async refresh(): Promise<void> {
-    // Cancel the previous scan
+  refresh(): Promise<void> {
+    if (this._loadingPromise) {
+      return this._loadingPromise;
+    }
+    return this._startLoad();
+  }
+
+  /**
+   * Cancel any in-progress scan and start a fresh one. Use only when the
+   * previous scan's result is known to be stale (root folder / exclude
+   * patterns changed, explicit Rescan command) — everything else should
+   * join via refresh().
+   */
+  rescan(): Promise<void> {
     if (this._scanTokenSource) {
       this._scanTokenSource.cancel();
       this._scanTokenSource.dispose();
+      this._scanTokenSource = null;
     }
+    return this._startLoad();
+  }
+
+  private async _startLoad(): Promise<void> {
     this._scanTokenSource = new vscode.CancellationTokenSource();
     const token = this._scanTokenSource.token;
 
     const myGeneration = ++this._loadGeneration;
-    this._loadingPromise = this._loadProjects(token, myGeneration);
+    const loading = this._loadProjects(token, myGeneration);
+    this._loadingPromise = loading;
     try {
-      await this._loadingPromise;
+      await loading;
     } finally {
       // Only the most recent load clears the promise and fires reset.
       // A superseded load must not null the newer load's promise or fire a premature reset.
@@ -91,6 +120,14 @@ export class ProjectStore implements vscode.Disposable {
           this._onDidChange.fire({ kind: "reset" });
         }
       }
+      this._markInitialized();
+    }
+  }
+
+  private _markInitialized(): void {
+    if (this._initResolve) {
+      this._initResolve();
+      this._initResolve = null;
     }
   }
 
@@ -104,6 +141,9 @@ export class ProjectStore implements vscode.Disposable {
     if (!this._hasLoaded) {
       this._seedFromCache(config);
       this._onDidChange.fire({ kind: "reset" });
+      // The seeded tree is paintable right away — getChildren must not wait
+      // for the disk scan that follows.
+      this._markInitialized();
     }
 
     // 2. Reconcile with a full filesystem scan, then repaint.

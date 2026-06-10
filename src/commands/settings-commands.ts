@@ -9,8 +9,9 @@ export function registerSettingsCommands(ctx: CommandContext): CommandDisposable
 	const setRootFolderCommand = vscode.commands.registerCommand(
 		'projectory.setRootFolder',
 		async () => {
+			// The config-change listener rescans when rootFolder changes —
+			// no explicit refresh here, or we'd start two competing scans.
 			await selectRootFolder();
-			await ctx.store.refresh();
 		}
 	);
 
@@ -34,8 +35,9 @@ export function registerSettingsCommands(ctx: CommandContext): CommandDisposable
 			// Clear all excluded paths so previously removed projects come back
 			ctx.savedProjectsService.clearExcludedPaths();
 
-			// Refresh the project list
-			await ctx.store.refresh();
+			// Explicit rescan: the user asked for a fresh scan, so cancel any
+			// in-flight load instead of joining it.
+			await ctx.store.rescan();
 
 			const projects = ctx.store.getProjects();
 			vscode.window.showInformationMessage(`Found ${projects.length} projects in root folder`);
@@ -60,8 +62,8 @@ export function registerSettingsCommands(ctx: CommandContext): CommandDisposable
 				ctx.historyService.clearHistory();
 				ctx.suggestionService.resetAll();
 
-				// Refresh everything
-				await ctx.store.refresh();
+				// Refresh everything from a clean slate
+				await ctx.store.rescan();
 
 				vscode.window.showInformationMessage('All Projectory data has been reset. Projects will be rescanned from root folder.');
 			}
