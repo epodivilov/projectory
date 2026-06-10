@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 
+## [0.3.0] - 2026-06-10
+
+### Added
+
+- Watch the root folder and repo worktrees for changes
+
+### Changed
+
+- Make linked-worktree detection async
+- Move path-existence checks off the tree render path
+- Drop full rescan when the panel becomes visible
+- Route git subprocess calls through a pooled git service
+- Replace fire-and-forget globalState writes with typed state store
+- Extract pure project-list helpers
+- Add ProjectStore as single owner of the project model
+- Make the tree provider a view over ProjectStore
+- Memoize realpath path normalization
+- Reconcile marker mutations in memory instead of rescanning
+- Build tooltips lazily and prune stale tree state
+
+### Fixed
+
+- Stop blocking the tree on in-flight scans
+- Dispose webview subscriptions and type the message protocol
+- Confirm before saving a folder that hides recent entries
+
+
 ## [0.2.2] - 2026-05-28
 
 ### Changed
