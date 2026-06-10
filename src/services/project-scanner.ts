@@ -6,7 +6,7 @@ import { getWorktrees, hasLinkedWorktrees } from './git-info-service';
 /**
  * Scan for projects in root folder
  */
-export async function scanProjects(config: ProjectoryConfig): Promise<Project[]> {
+export async function scanProjects(config: ProjectoryConfig, token?: vscode.CancellationToken): Promise<Project[]> {
 	const { rootFolder, excludePatterns, maxScanDepth } = config;
 
 	if (!rootFolder) {
@@ -16,7 +16,7 @@ export async function scanProjects(config: ProjectoryConfig): Promise<Project[]>
 	const rootUri = vscode.Uri.file(rootFolder);
 	const projects: Project[] = [];
 
-	await scanDirectory(rootUri, projects, excludePatterns, maxScanDepth, 0);
+	await scanDirectory(rootUri, projects, excludePatterns, maxScanDepth, 0, token);
 
 	return projects.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -26,8 +26,13 @@ async function scanDirectory(
 	projects: Project[],
 	excludePatterns: string[],
 	maxDepth: number,
-	currentDepth: number
+	currentDepth: number,
+	token?: vscode.CancellationToken
 ): Promise<void> {
+	if (token?.isCancellationRequested) {
+		return;
+	}
+
 	if (currentDepth > maxDepth) {
 		return;
 	}
@@ -55,6 +60,10 @@ async function scanDirectory(
 
 		// Scan subdirectories
 		for (const [name, type] of entries) {
+			if (token?.isCancellationRequested) {
+				return;
+			}
+
 			if (type !== vscode.FileType.Directory) {
 				continue;
 			}
@@ -63,7 +72,7 @@ async function scanDirectory(
 			}
 
 			const subUri = vscode.Uri.joinPath(uri, name);
-			await scanDirectory(subUri, projects, excludePatterns, maxDepth, currentDepth + 1);
+			await scanDirectory(subUri, projects, excludePatterns, maxDepth, currentDepth + 1, token);
 		}
 	} catch (error) {
 		console.error(`Error scanning ${uri.fsPath}:`, error);
