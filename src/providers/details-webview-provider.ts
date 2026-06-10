@@ -8,12 +8,13 @@ import { getGitInfo } from '../services/git-info-service';
 /**
  * WebviewViewProvider for the project details view
  */
-export class DetailsWebviewProvider implements vscode.WebviewViewProvider {
+export class DetailsWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
 	public static readonly viewType = 'projectory.detailsView';
 
 	private _view?: vscode.WebviewView;
 	private _currentPath: string | null = null;
 	private _currentIsProject: boolean = false;
+	private _disposables: vscode.Disposable[] = [];
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -28,6 +29,12 @@ export class DetailsWebviewProvider implements vscode.WebviewViewProvider {
 	): void {
 		this._view = webviewView;
 
+		// Dispose and clear any existing subscriptions before setting up new ones
+		for (const d of this._disposables) {
+			d.dispose();
+		}
+		this._disposables = [];
+
 		webviewView.webview.options = {
 			enableScripts: true,
 			localResourceRoots: [
@@ -38,19 +45,30 @@ export class DetailsWebviewProvider implements vscode.WebviewViewProvider {
 
 		webviewView.webview.html = this.getHtmlContent(webviewView.webview);
 
-		webviewView.webview.onDidReceiveMessage((message: WebviewMessage) => {
-			this.handleMessage(message);
-		});
+		this._disposables.push(
+			webviewView.webview.onDidReceiveMessage((message: WebviewMessage) => {
+				this.handleMessage(message);
+			})
+		);
 
 		// Send current item when view becomes visible
-		webviewView.onDidChangeVisibility(() => {
-			if (webviewView.visible && this._currentPath) {
-				// Re-fetch details when view becomes visible
-				this.refreshCurrentItem().catch((err) => {
-					console.error('Error refreshing details on visibility change:', err);
-				});
-			}
-		});
+		this._disposables.push(
+			webviewView.onDidChangeVisibility(() => {
+				if (webviewView.visible && this._currentPath) {
+					// Re-fetch details when view becomes visible
+					this.refreshCurrentItem().catch((err) => {
+						console.error('Error refreshing details on visibility change:', err);
+					});
+				}
+			})
+		);
+	}
+
+	dispose(): void {
+		for (const d of this._disposables) {
+			d.dispose();
+		}
+		this._disposables = [];
 	}
 
 	/**
@@ -143,52 +161,52 @@ export class DetailsWebviewProvider implements vscode.WebviewViewProvider {
 	 * Handle messages from the webview
 	 */
 	private async handleMessage(message: WebviewMessage): Promise<void> {
-		switch (message.command) {
-			case 'ready':
-				// Send stored item when webview is ready
-				if (this._currentPath) {
+		try {
+			switch (message.command) {
+				case 'ready':
+					// Send stored item when webview is ready
+					if (this._currentPath) {
+						await this.refreshCurrentItem();
+					}
+					break;
+
+				case 'openProject': {
+					this.historyService.recordOpen(message.payload.path);
+					const uri = vscode.Uri.file(message.payload.path);
+					vscode.commands.executeCommand('vscode.openFolder', uri, {
+						forceNewWindow: message.payload.newWindow
+					});
+					break;
+				}
+
+				case 'saveToProjects': {
+					this.savedProjectsService.saveProject(message.payload.path);
+					await vscode.commands.executeCommand('projectory.refreshProjects');
+					// Update details to reflect saved state
 					await this.refreshCurrentItem();
+					break;
 				}
-				break;
 
-			case 'openProject': {
-				const payload = message.payload as { path: string; newWindow: boolean };
-				this.historyService.recordOpen(payload.path);
-				const uri = vscode.Uri.file(payload.path);
-				vscode.commands.executeCommand('vscode.openFolder', uri, {
-					forceNewWindow: payload.newWindow
-				});
-				break;
-			}
-
-			case 'saveToProjects': {
-				const payload = message.payload as { path: string };
-				this.savedProjectsService.saveProject(payload.path);
-				await vscode.commands.executeCommand('projectory.refreshProjects');
-				// Update details to reflect saved state
-				await this.refreshCurrentItem();
-				break;
-			}
-
-			case 'deleteProject': {
-				const payload = message.payload as { path: string; isSaved: boolean };
-				if (payload.isSaved) {
-					// Remove from saved projects
-					this.savedProjectsService.removeSavedProject(payload.path);
-				} else {
-					// Add to excluded paths (for scanned git repos)
-					this.savedProjectsService.excludePath(payload.path);
+				case 'deleteProject': {
+					if (message.payload.isSaved) {
+						// Remove from saved projects
+						this.savedProjectsService.removeSavedProject(message.payload.path);
+					} else {
+						// Add to excluded paths (for scanned git repos)
+						this.savedProjectsService.excludePath(message.payload.path);
+					}
+					vscode.commands.executeCommand('projectory.refreshProjects');
+					this.clearProject();
+					break;
 				}
-				vscode.commands.executeCommand('projectory.refreshProjects');
-				this.clearProject();
-				break;
-			}
 
-			case 'openUrl': {
-				const payload = message.payload as { url: string };
-				vscode.env.openExternal(vscode.Uri.parse(payload.url));
-				break;
+				case 'openUrl': {
+					vscode.env.openExternal(vscode.Uri.parse(message.payload.url));
+					break;
+				}
 			}
+		} catch (err) {
+			console.error('Error handling webview message:', err);
 		}
 	}
 

@@ -130,8 +130,34 @@ export interface ProjectoryConfig {
 /**
  * Message sent between extension and webview
  */
-export interface WebviewMessage {
-	command: string;
-	payload?: unknown;
+export interface ReadyMessage {
+	command: 'ready';
 }
+
+export interface OpenProjectMessage {
+	command: 'openProject';
+	payload: { path: string; newWindow: boolean };
+}
+
+export interface SaveToProjectsMessage {
+	command: 'saveToProjects';
+	payload: { path: string };
+}
+
+export interface DeleteProjectMessage {
+	command: 'deleteProject';
+	payload: { path: string; isSaved: boolean };
+}
+
+export interface OpenUrlMessage {
+	command: 'openUrl';
+	payload: { url: string };
+}
+
+export type WebviewMessage =
+	| ReadyMessage
+	| OpenProjectMessage
+	| SaveToProjectsMessage
+	| DeleteProjectMessage
+	| OpenUrlMessage;
 
